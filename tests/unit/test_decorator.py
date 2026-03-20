@@ -67,12 +67,17 @@ class TestTrackCostsBehavior:
 
     def teardown_method(self) -> None:
         """Reset the shared store after each test."""
+        store = getattr(self, "_store", None)
+        if store is not None:
+            store.close()
+            self._store = None  # type: ignore[assignment]
         set_store(None)
 
     def _make_store(self, tmp_db_path: str) -> UsageStore:
         """Create a UsageStore at tmp_db_path and inject it via set_store."""
         store = UsageStore(db_path=tmp_db_path)
         set_store(store)
+        self._store = store  # type: ignore[assignment]
         return store
 
     def test_budget_enforcement_raises_on_exceeded(self, tmp_db_path: str) -> None:

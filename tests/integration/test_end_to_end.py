@@ -100,7 +100,7 @@ def test_track_costs_with_all_kwargs(tmp_db_path: str) -> None:
         assert call_llm() == {"result": "ok"}
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
 
 
 def test_track_costs_passes_args_and_kwargs() -> None:
@@ -592,7 +592,7 @@ def test_full_pipeline_extract_usage(tmp_db_path: str) -> None:
         assert entry["cost"] == approx(expected_cost)
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
 
 
 def test_budget_enforcement_across_calls(tmp_db_path: str) -> None:
@@ -635,7 +635,7 @@ def test_budget_enforcement_across_calls(tmp_db_path: str) -> None:
         assert total_cost == approx(call_count * per_call_cost)
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
 
 
 def test_decorator_with_pricing_registry(tmp_db_path: str) -> None:
@@ -666,7 +666,7 @@ def test_decorator_with_pricing_registry(tmp_db_path: str) -> None:
         assert store.get_total_cost("pricing-test") == approx(expected_cost)
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
 
 
 def test_decorator_bare_no_tracking_on_plain_response(tmp_db_path: str) -> None:
@@ -691,7 +691,7 @@ def test_decorator_bare_no_tracking_on_plain_response(tmp_db_path: str) -> None:
         assert store.get_total_cost("default") == approx(0.0)
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
 
 
 def test_decorator_model_override_with_store(tmp_db_path: str) -> None:
@@ -720,7 +720,7 @@ def test_decorator_model_override_with_store(tmp_db_path: str) -> None:
         assert logs[0]["model"] != "detected"
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
 
 
 def test_budget_exceeded_message_contains_project(tmp_db_path: str) -> None:
@@ -749,4 +749,4 @@ def test_budget_exceeded_message_contains_project(tmp_db_path: str) -> None:
             call_llm()
     finally:
         store.close()
-        set_store(None)  # type: ignore[arg-type]
+        set_store(None)
