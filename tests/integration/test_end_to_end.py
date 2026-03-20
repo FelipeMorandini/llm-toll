@@ -160,7 +160,7 @@ def test_usage_store_creation_with_default_path() -> None:
 
 
 def test_usage_store_log_and_get_cost(tmp_db_path: str) -> None:
-    """Calling log_usage and get_total_cost should not crash."""
+    """log_usage persists cost and get_total_cost returns the accumulated value."""
     from llm_budget import UsageStore
 
     store = UsageStore(db_path=tmp_db_path)
@@ -171,9 +171,9 @@ def test_usage_store_log_and_get_cost(tmp_db_path: str) -> None:
         output_tokens=50,
         cost=0.05,
     )
-    # Stub returns 0.0 — just verify no exception
     total = store.get_total_cost("test")
-    assert isinstance(total, float)
+    assert total == approx(0.05)
+    store.close()
 
 
 def test_rate_limiter_creation_and_check() -> None:
@@ -314,8 +314,10 @@ def test_full_wiring_decorator_with_registry_and_store(tmp_db_path: str) -> None
     assert cost > 0
 
     store.log_usage("e2e-test", "gpt-4o", 50, 25, cost)
+    assert store.get_total_cost("e2e-test") == approx(cost)
     reporter.report_call("gpt-4o", 50, 25, cost)
     reporter.report_session()
+    store.close()
 
 
 def test_default_registry_importable() -> None:
@@ -399,3 +401,140 @@ def test_fallback_pricing_end_to_end() -> None:
     expected = 1000 * 1e-05 + 500 * 2e-05  # 0.01 + 0.01 = 0.02
     assert cost == approx(expected)
     assert cost > 0
+
+
+# ---------------------------------------------------------------------------
+# UsageStore integration tests
+# ---------------------------------------------------------------------------
+
+
+def test_store_persists_across_instances(tmp_db_path: str) -> None:
+    """Data written by one UsageStore instance is visible to a new instance at the same path."""
+    from llm_budget import UsageStore
+
+    store1 = UsageStore(db_path=tmp_db_path)
+    store1.log_usage(
+        project="persist", model="gpt-4o", input_tokens=100, output_tokens=50, cost=0.123
+    )
+    store1.close()
+
+    store2 = UsageStore(db_path=tmp_db_path)
+    total = store2.get_total_cost("persist")
+    assert total == approx(0.123)
+    store2.close()
+
+
+def test_store_with_pricing_registry(tmp_db_path: str) -> None:
+    """Cost computed by PricingRegistry matches what UsageStore reports after logging."""
+    from llm_budget import PricingRegistry, UsageStore
+
+    registry = PricingRegistry()
+    registry.register_model("gpt-4o", 2.5e-06, 10.0e-06)
+
+    cost = registry.get_cost("gpt-4o", input_tokens=500, output_tokens=200)
+
+    store = UsageStore(db_path=tmp_db_path)
+    store.log_usage(
+        project="pricing", model="gpt-4o", input_tokens=500, output_tokens=200, cost=cost
+    )
+
+    assert store.get_total_cost("pricing") == approx(cost)
+    assert cost == approx(500 * 2.5e-06 + 200 * 10.0e-06)
+    store.close()
+
+
+def test_store_multiple_models_same_project(tmp_db_path: str) -> None:
+    """Logging calls with different models to the same project accumulates total cost."""
+    from llm_budget import UsageStore
+
+    store = UsageStore(db_path=tmp_db_path)
+    store.log_usage(project="multi", model="gpt-4o", input_tokens=100, output_tokens=50, cost=0.01)
+    store.log_usage(
+        project="multi",
+        model="claude-sonnet-4-20250514",
+        input_tokens=200,
+        output_tokens=100,
+        cost=0.02,
+    )
+    store.log_usage(
+        project="multi", model="gemini-1.5-pro", input_tokens=300, output_tokens=150, cost=0.03
+    )
+
+    total = store.get_total_cost("multi")
+    assert total == approx(0.01 + 0.02 + 0.03)
+    store.close()
+
+
+def test_store_get_usage_logs_end_to_end(tmp_db_path: str) -> None:
+    """get_usage_logs returns entries with all expected fields populated."""
+    from llm_budget import UsageStore
+
+    store = UsageStore(db_path=tmp_db_path)
+    store.log_usage(project="logs", model="gpt-4o", input_tokens=100, output_tokens=50, cost=0.005)
+    store.log_usage(
+        project="logs",
+        model="claude-sonnet-4-20250514",
+        input_tokens=200,
+        output_tokens=100,
+        cost=0.010,
+    )
+
+    logs = store.get_usage_logs("logs")
+    assert len(logs) == 2
+
+    expected_keys = {
+        "id",
+        "project",
+        "model",
+        "input_tokens",
+        "output_tokens",
+        "cost",
+        "created_at",
+    }
+    for entry in logs:
+        assert set(entry.keys()) == expected_keys
+        assert entry["project"] == "logs"
+        assert isinstance(entry["id"], int)
+        assert isinstance(entry["input_tokens"], int)
+        assert isinstance(entry["output_tokens"], int)
+        assert isinstance(entry["cost"], float)
+        assert isinstance(entry["created_at"], str)
+        assert len(entry["created_at"]) > 0
+
+    # Most recent first
+    models = [e["model"] for e in logs]
+    assert models[0] == "claude-sonnet-4-20250514"
+    assert models[1] == "gpt-4o"
+    store.close()
+
+
+def test_store_reset_preserves_logs(tmp_db_path: str) -> None:
+    """Resetting a budget zeroes total_cost but does not delete usage log entries."""
+    from llm_budget import UsageStore
+
+    store = UsageStore(db_path=tmp_db_path)
+    store.log_usage(project="reset", model="gpt-4o", input_tokens=100, output_tokens=50, cost=0.05)
+    store.log_usage(
+        project="reset", model="gpt-4o", input_tokens=200, output_tokens=100, cost=0.10
+    )
+
+    assert store.get_total_cost("reset") == approx(0.15)
+
+    store.reset_budget("reset")
+
+    assert store.get_total_cost("reset") == approx(0.0)
+
+    logs = store.get_usage_logs("reset")
+    assert len(logs) == 2
+    store.close()
+
+
+def test_store_default_path_resolves() -> None:
+    """UsageStore() without arguments resolves _db_path to ~/.llm_budget.db."""
+    from pathlib import Path
+
+    from llm_budget import UsageStore
+
+    store = UsageStore()
+    expected = str(Path.home() / ".llm_budget.db")
+    assert store._db_path == expected
