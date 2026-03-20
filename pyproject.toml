@@ -7,7 +7,7 @@ name = "llm-budget"
 version = "0.1.0"
 description = "Lightweight drop-in Python decorator to track costs, monitor token usage, and enforce budget/rate limits for LLM API calls"
 readme = "README.md"
-license = "MIT"
+license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [{ name = "Felipe Morandini" }]
 keywords = ["llm", "budget", "cost-tracking", "decorator", "openai", "anthropic", "gemini"]
@@ -35,7 +35,7 @@ dev = [
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.25"]
 gemini = ["google-genai>=1.0"]
-all = ["llm-budget[openai,anthropic,gemini]"]
+all = ["openai>=1.0", "anthropic>=0.25", "google-genai>=1.0"]
 
 [project.urls]
 Homepage = "https://github.com/felipemorandini/llm_budget"

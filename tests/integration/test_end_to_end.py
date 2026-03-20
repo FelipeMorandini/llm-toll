@@ -6,6 +6,8 @@ import importlib
 import sys
 from typing import Any
 
+from pytest import approx
+
 
 def test_full_public_api_importable() -> None:
     """Verify every name in __all__ is importable from llm_budget."""
@@ -113,7 +115,7 @@ def test_pricing_registry_register_and_compute() -> None:
 
     cost = registry.get_cost("test-model", input_tokens=100, output_tokens=50)
     expected = 100 * 0.01 + 50 * 0.03  # 1.0 + 1.5 = 2.5
-    assert cost == expected
+    assert cost == approx(expected)
 
 
 def test_pricing_registry_unknown_model_returns_zero() -> None:
@@ -135,7 +137,7 @@ def test_pricing_registry_override_model() -> None:
 
     cost = registry.get_cost("gpt-4o", input_tokens=1000, output_tokens=1000)
     expected = 1000 * 0.005 + 1000 * 0.015
-    assert cost == expected
+    assert cost == approx(expected)
 
 
 def test_usage_store_creation_with_tmp_path(tmp_db_path: str) -> None:

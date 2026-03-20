@@ -21,5 +21,6 @@ class RateLimiter:
     def check(self, tokens: int = 0) -> None:
         """Check if the current request would exceed rate limits.
 
-        Raises LocalRateLimitError if limits would be exceeded.
+        Currently a no-op stub. Will raise ``LocalRateLimitError``
+        when sliding-window enforcement is implemented.
         """

@@ -12,9 +12,12 @@ class TestUsageStore:
         store = UsageStore()
         assert store._db_path is None
 
-    def test_instantiate_with_custom_path(self) -> None:
-        store = UsageStore(db_path="/tmp/test.db")
-        assert store._db_path == "/tmp/test.db"
+    def test_instantiate_with_custom_path(self, tmp_path: object) -> None:
+        from pathlib import Path
+
+        db_path = str(Path(str(tmp_path)) / "test.db")
+        store = UsageStore(db_path=db_path)
+        assert store._db_path == db_path
 
     def test_get_total_cost_returns_zero(self) -> None:
         store = UsageStore()

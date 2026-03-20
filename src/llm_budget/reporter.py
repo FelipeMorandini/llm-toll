@@ -1,10 +1,13 @@
-"""Color-coded terminal cost reporter."""
+"""Color-coded terminal cost reporter (stub)."""
 
 from __future__ import annotations
 
 
 class CostReporter:
-    """Formats and prints color-coded terminal summaries of per-call and session costs."""
+    """Formats and prints color-coded terminal summaries of per-call and session costs.
+
+    Currently a stub — methods are no-ops. Output will be implemented in a future release.
+    """
 
     def __init__(self) -> None:
         self._session_cost: float = 0.0

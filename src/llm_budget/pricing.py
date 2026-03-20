@@ -1,13 +1,14 @@
-"""Central store of per-model cost-per-token pricing."""
+"""In-memory registry for per-model cost-per-token pricing."""
 
 from __future__ import annotations
 
 
 class PricingRegistry:
-    """Central store of per-model cost-per-token pricing.
+    """In-memory store of per-model cost-per-token pricing.
 
-    Ships with static pricing for OpenAI, Anthropic, and Gemini models.
-    Supports custom model overrides and fallback pricing.
+    Starts empty. Register pricing for models via :meth:`register_model`.
+    Calling :meth:`get_cost` for an unregistered model returns ``0.0``.
+    Built-in pricing data will be added in a future release.
     """
 
     def __init__(self) -> None:

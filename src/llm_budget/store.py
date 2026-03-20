@@ -1,4 +1,4 @@
-"""Local SQLite persistence layer for usage logs and budget state."""
+"""Local SQLite persistence layer for usage logs and budget state (stub)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from __future__ import annotations
 class UsageStore:
     """Local persistence layer using SQLite.
 
-    Stores per-call usage logs and per-project budget state
-    in ~/.llm_budget.db (configurable).
+    Will store per-call usage logs and per-project budget state
+    in ~/.llm_budget.db (configurable). Currently a stub — no I/O is performed.
     """
 
     def __init__(self, db_path: str | None = None) -> None:
