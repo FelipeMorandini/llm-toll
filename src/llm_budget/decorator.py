@@ -99,8 +99,9 @@ def track_costs(
                 current_cost = store.get_total_cost(project)
                 if current_cost >= max_budget:
                     raise BudgetExceededError(
-                        f"Budget exceeded for project '{project}': "
-                        f"${current_cost:.4f} >= ${max_budget:.4f}"
+                        project=project,
+                        current_cost=current_cost,
+                        max_budget=max_budget,
                     )
 
             # 2. Execute the wrapped function
