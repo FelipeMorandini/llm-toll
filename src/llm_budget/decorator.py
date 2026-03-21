@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import threading
 import warnings
@@ -11,12 +12,16 @@ from typing import Any, TypeVar, overload
 from llm_budget.exceptions import BudgetExceededError
 from llm_budget.parsers import auto_detect_usage
 from llm_budget.pricing import default_registry
+from llm_budget.reporter import CostReporter
 from llm_budget.store import UsageStore
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 _default_store: UsageStore | None = None
 _store_lock = threading.Lock()
+
+_default_reporter: CostReporter | None = None
+_reporter_lock = threading.Lock()
 
 
 def _get_store() -> UsageStore:
@@ -29,6 +34,28 @@ def _get_store() -> UsageStore:
             return _default_store
         _default_store = UsageStore()
         return _default_store
+
+
+def _get_reporter() -> CostReporter:
+    """Return the shared module-level CostReporter (lazily created)."""
+    global _default_reporter
+    if _default_reporter is not None:
+        return _default_reporter
+    with _reporter_lock:
+        if _default_reporter is not None:
+            return _default_reporter
+        _default_reporter = CostReporter()
+        return _default_reporter
+
+
+def set_reporter(reporter: CostReporter | None) -> None:
+    """Inject a custom CostReporter for the decorator to use.
+
+    Pass ``None`` to reset to the default (lazily created) reporter.
+    """
+    global _default_reporter
+    with _reporter_lock:
+        _default_reporter = reporter
 
 
 def set_store(store: UsageStore | None) -> None:
@@ -135,6 +162,10 @@ def track_costs(
 
             # 5. Log usage
             store.log_usage(project, effective_model, input_tokens, output_tokens, cost)
+
+            # 5b. Report cost
+            with contextlib.suppress(Exception):
+                _get_reporter().report_call(effective_model, input_tokens, output_tokens, cost)
 
             # 6. Return original response
             return response
