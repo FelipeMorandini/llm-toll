@@ -750,3 +750,191 @@ def test_budget_exceeded_message_contains_project(tmp_db_path: str) -> None:
     finally:
         store.close()
         set_store(None)
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: auto-detection of SDK responses (no extract_usage)
+# ---------------------------------------------------------------------------
+
+
+class _MockOpenAIUsage:
+    """Minimal mock of openai.types.CompletionUsage."""
+
+    def __init__(self, prompt_tokens: int, completion_tokens: int) -> None:
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
+
+
+class _MockOpenAIChatCompletion:
+    """Minimal mock of openai.types.chat.ChatCompletion."""
+
+    def __init__(self, model: str, prompt_tokens: int, completion_tokens: int) -> None:
+        self.id = "chatcmpl-mock"
+        self.model = model
+        self.choices = [{"message": {"content": "Hello!"}}]
+        self.usage = _MockOpenAIUsage(prompt_tokens, completion_tokens)
+
+
+class _MockAnthropicUsage:
+    """Minimal mock of anthropic Usage."""
+
+    def __init__(self, input_tokens: int, output_tokens: int) -> None:
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+class _MockAnthropicMessage:
+    """Minimal mock of anthropic.types.Message."""
+
+    def __init__(self, model: str, input_tokens: int, output_tokens: int) -> None:
+        self.id = "msg-mock"
+        self.model = model
+        self.content = [{"type": "text", "text": "Hello!"}]
+        self.stop_reason = "end_turn"
+        self.usage = _MockAnthropicUsage(input_tokens, output_tokens)
+
+
+def test_decorator_auto_detects_openai_response(tmp_db_path: str) -> None:
+    """Decorator auto-detects an OpenAI ChatCompletion and logs model/cost correctly."""
+    from llm_budget import UsageStore, default_registry, set_store, track_costs
+
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+
+    try:
+
+        @track_costs(project="openai-auto")
+        def call_llm() -> _MockOpenAIChatCompletion:
+            return _MockOpenAIChatCompletion("gpt-4o", prompt_tokens=100, completion_tokens=50)
+
+        result = call_llm()
+
+        # Response returned unchanged
+        assert isinstance(result, _MockOpenAIChatCompletion)
+        assert result.model == "gpt-4o"
+
+        # Store has exactly one entry with correct model and cost
+        logs = store.get_usage_logs("openai-auto")
+        assert len(logs) == 1
+        entry = logs[0]
+        assert entry["model"] == "gpt-4o"
+        assert entry["input_tokens"] == 100
+        assert entry["output_tokens"] == 50
+
+        expected_cost = default_registry.get_cost("gpt-4o", 100, 50)
+        assert entry["cost"] == approx(expected_cost)
+        assert store.get_total_cost("openai-auto") == approx(expected_cost)
+    finally:
+        store.close()
+        set_store(None)
+
+
+def test_decorator_auto_detects_anthropic_response(tmp_db_path: str) -> None:
+    """Decorator auto-detects an Anthropic Message and logs model/cost correctly."""
+    from llm_budget import UsageStore, default_registry, set_store, track_costs
+
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+
+    try:
+
+        @track_costs(project="anthropic-auto")
+        def call_llm() -> _MockAnthropicMessage:
+            return _MockAnthropicMessage(
+                "claude-sonnet-4-20250514", input_tokens=200, output_tokens=100
+            )
+
+        result = call_llm()
+
+        assert isinstance(result, _MockAnthropicMessage)
+        assert result.model == "claude-sonnet-4-20250514"
+
+        logs = store.get_usage_logs("anthropic-auto")
+        assert len(logs) == 1
+        entry = logs[0]
+        assert entry["model"] == "claude-sonnet-4-20250514"
+        assert entry["input_tokens"] == 200
+        assert entry["output_tokens"] == 100
+
+        expected_cost = default_registry.get_cost("claude-sonnet-4-20250514", 200, 100)
+        assert entry["cost"] == approx(expected_cost)
+        assert store.get_total_cost("anthropic-auto") == approx(expected_cost)
+    finally:
+        store.close()
+        set_store(None)
+
+
+def test_decorator_openai_model_override(tmp_db_path: str) -> None:
+    """Decorator model= overrides the model detected from an OpenAI response."""
+    from llm_budget import UsageStore, default_registry, set_store, track_costs
+
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+
+    try:
+
+        @track_costs(project="model-override", model="gpt-4o")
+        def call_llm() -> _MockOpenAIChatCompletion:
+            return _MockOpenAIChatCompletion(
+                "gpt-4o-2024-08-06", prompt_tokens=300, completion_tokens=150
+            )
+
+        result = call_llm()
+
+        assert result.model == "gpt-4o-2024-08-06"
+
+        logs = store.get_usage_logs("model-override")
+        assert len(logs) == 1
+        entry = logs[0]
+        # Logged model should be the override, not the detected one
+        assert entry["model"] == "gpt-4o"
+        assert entry["input_tokens"] == 300
+        assert entry["output_tokens"] == 150
+
+        expected_cost = default_registry.get_cost("gpt-4o", 300, 150)
+        assert entry["cost"] == approx(expected_cost)
+    finally:
+        store.close()
+        set_store(None)
+
+
+def test_decorator_auto_detect_with_budget(tmp_db_path: str) -> None:
+    """Auto-detected OpenAI response works with max_budget enforcement."""
+    from llm_budget import (
+        BudgetExceededError,
+        UsageStore,
+        default_registry,
+        set_store,
+        track_costs,
+    )
+
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+
+    try:
+        per_call_cost = default_registry.get_cost("gpt-4o", 1000, 500)
+        # Budget allows a few calls but not unlimited.
+        # The pre-call check rejects when current_cost >= max_budget, so with
+        # a budget of 2.5 * per_call_cost: calls 1 and 2 succeed (cost after
+        # each: 1x, 2x), call 3's pre-check sees 2x < 2.5x so it proceeds
+        # (cost becomes 3x), call 4's pre-check sees 3x >= 2.5x and raises.
+        max_budget = per_call_cost * 2.5
+
+        @track_costs(project="budget-auto", max_budget=max_budget)
+        def call_llm() -> _MockOpenAIChatCompletion:
+            return _MockOpenAIChatCompletion("gpt-4o", prompt_tokens=1000, completion_tokens=500)
+
+        call_count = 0
+        with pytest.raises(BudgetExceededError):
+            for _ in range(100):
+                call_llm()
+                call_count += 1
+
+        # 3 calls succeed, the 4th is blocked by the pre-call budget check
+        assert call_count == 3
+
+        total_cost = store.get_total_cost("budget-auto")
+        assert total_cost == approx(call_count * per_call_cost)
+    finally:
+        store.close()
+        set_store(None)
