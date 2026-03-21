@@ -1,4 +1,4 @@
-"""Custom exceptions for llm_budget."""
+"""Custom exceptions for llm_toll."""
 
 from __future__ import annotations
 

@@ -9,11 +9,11 @@ import warnings
 from collections.abc import Callable
 from typing import Any, TypeVar, overload
 
-from llm_budget.exceptions import BudgetExceededError
-from llm_budget.parsers import auto_detect_usage
-from llm_budget.pricing import default_registry
-from llm_budget.reporter import CostReporter
-from llm_budget.store import UsageStore
+from llm_toll.exceptions import BudgetExceededError
+from llm_toll.parsers import auto_detect_usage
+from llm_toll.pricing import default_registry
+from llm_toll.reporter import CostReporter
+from llm_toll.store import UsageStore
 
 F = TypeVar("F", bound=Callable[..., Any])
 

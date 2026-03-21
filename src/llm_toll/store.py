@@ -16,7 +16,7 @@ class UsageStore:
     """Local persistence layer using SQLite.
 
     Stores per-call usage logs and per-project budget state.
-    Default database path is ``~/.llm_budget.db`` (configurable).
+    Default database path is ``~/.llm_toll.db`` (configurable).
 
     The connection is opened lazily on first use. All write operations
     are serialized via a lock for thread safety.
@@ -24,7 +24,7 @@ class UsageStore:
 
     def __init__(self, db_path: str | None = None) -> None:
         if db_path is None:
-            resolved = Path.home() / ".llm_budget.db"
+            resolved = Path.home() / ".llm_toll.db"
         else:
             # Reject obvious path traversal before resolving
             if ".." in Path(db_path).parts:

@@ -72,7 +72,7 @@ dmypy.txt
 .ruff_cache/
 
 # SQLite database (default storage)
-.llm_budget.db
+.llm_toll.db
 
 # OS files
 .DS_Store

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from llm_budget.parsers import auto_detect_usage
-from llm_budget.parsers.anthropic import parse_anthropic_response
-from llm_budget.parsers.gemini import parse_gemini_response
-from llm_budget.parsers.openai import parse_openai_response
+from llm_toll.parsers import auto_detect_usage
+from llm_toll.parsers.anthropic import parse_anthropic_response
+from llm_toll.parsers.gemini import parse_gemini_response
+from llm_toll.parsers.openai import parse_openai_response
 
 
 class _MockUsageOpenAI:
@@ -61,15 +61,15 @@ class TestParsers:
         expected = ("gpt-4o", 100, 50)
         # Patch the source module so the imported reference in the tuple is replaced
         with patch(
-            "llm_budget.parsers.openai.parse_openai_response", return_value=expected
+            "llm_toll.parsers.openai.parse_openai_response", return_value=expected
         ) as mock_parser:
             # Re-import to pick up the patched function
             import importlib
 
-            import llm_budget.parsers
+            import llm_toll.parsers
 
-            importlib.reload(llm_budget.parsers)
-            from llm_budget.parsers import auto_detect_usage as reloaded_auto_detect
+            importlib.reload(llm_toll.parsers)
+            from llm_toll.parsers import auto_detect_usage as reloaded_auto_detect
 
             result = reloaded_auto_detect({"mock": "response"})
         assert result == expected
@@ -199,10 +199,10 @@ class TestAutoDetectIntegration:
         """Return a freshly-reloaded auto_detect_usage to avoid stale refs."""
         import importlib
 
-        import llm_budget.parsers
+        import llm_toll.parsers
 
-        importlib.reload(llm_budget.parsers)
-        return llm_budget.parsers.auto_detect_usage
+        importlib.reload(llm_toll.parsers)
+        return llm_toll.parsers.auto_detect_usage
 
     def test_openai_response_auto_detected(self) -> None:
         detect = self._fresh_auto_detect()

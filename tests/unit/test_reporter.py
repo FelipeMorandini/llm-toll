@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from llm_budget.reporter import CostReporter
+from llm_toll.reporter import CostReporter
 
 
 class TestCostReporterOutput:
@@ -143,8 +143,8 @@ class TestCostReporterIntegration:
     """Integration test: decorator -> reporter pipeline."""
 
     def test_decorator_calls_reporter(self, tmp_path: Path) -> None:
-        from llm_budget.decorator import set_reporter, set_store, track_costs
-        from llm_budget.store import UsageStore
+        from llm_toll.decorator import set_reporter, set_store, track_costs
+        from llm_toll.store import UsageStore
 
         buf = io.StringIO()
         reporter = CostReporter(file=buf)

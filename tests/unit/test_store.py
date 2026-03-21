@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from llm_budget.store import UsageStore
+from llm_toll.store import UsageStore
 
 
 class TestUsageStore:
@@ -15,7 +15,7 @@ class TestUsageStore:
 
     def test_instantiate_with_default_none_path(self) -> None:
         store = UsageStore()
-        expected = str(Path.home() / ".llm_budget.db")
+        expected = str(Path.home() / ".llm_toll.db")
         assert store._db_path == expected
 
     def test_instantiate_with_custom_path(self, tmp_path: Path) -> None:

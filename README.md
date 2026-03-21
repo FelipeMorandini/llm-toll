@@ -1,10 +1,10 @@
-# llm_budget
+# llm_toll
 
 A lightweight, drop-in Python decorator to track costs, monitor token usage, and enforce budget and rate limits for LLM API calls.
 
 ## Overview
 
-`llm_budget` is a developer tool designed for local prototyping and small-scale production scripts. By simply wrapping a function with `@track_costs`, developers can automatically log token usage, calculate the exact cost of the run in USD, and halt execution if a hard-coded budget or API rate limit is breached.
+`llm_toll` is a developer tool designed for local prototyping and small-scale production scripts. By simply wrapping a function with `@track_costs`, developers can automatically log token usage, calculate the exact cost of the run in USD, and halt execution if a hard-coded budget or API rate limit is breached.
 
 ## Features
 
@@ -20,9 +20,9 @@ A lightweight, drop-in Python decorator to track costs, monitor token usage, and
 ### Installation
 
 ```bash
-pip install llm-budget
+pip install llm-toll
 # or, with uv
-uv add llm-budget
+uv add llm-toll
 ```
 
 ### Basic Usage (Auto-detect)
@@ -30,7 +30,7 @@ uv add llm-budget
 For users utilizing standard SDKs, the decorator infers the model and token count from the response object.
 
 ```python
-from llm_budget import track_costs
+from llm_toll import track_costs
 
 @track_costs(project="my_scraper", max_budget=2.00, reset="monthly")
 def generate_summary(text):
@@ -46,7 +46,7 @@ def generate_summary(text):
 For custom setups or raw API requests, users can explicitly state the model and rate limits.
 
 ```python
-from llm_budget import track_costs
+from llm_toll import track_costs
 
 @track_costs(
     model="claude-sonnet-4-20250514",
@@ -71,7 +71,7 @@ def custom_anthropic_call(prompt):
 ## Error Handling
 
 ```python
-from llm_budget.exceptions import BudgetExceededError, LocalRateLimitError
+from llm_toll.exceptions import BudgetExceededError, LocalRateLimitError
 
 try:
     result = generate_summary("some text")
@@ -95,7 +95,7 @@ uv run ruff check .
 uv run ruff format .
 
 # Type check
-uv run mypy src/llm_budget
+uv run mypy src/llm_toll
 ```
 
 ## License

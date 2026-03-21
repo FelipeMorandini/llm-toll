@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from llm_budget.rate_limiter import RateLimiter
+from llm_toll.rate_limiter import RateLimiter
 
 
 class TestRateLimiter:

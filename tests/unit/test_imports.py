@@ -4,44 +4,44 @@ from __future__ import annotations
 
 
 def test_package_version() -> None:
-    from llm_budget import __version__
+    from llm_toll import __version__
 
     assert __version__ == "0.1.0"
 
 
 def test_public_api_exports() -> None:
-    import llm_budget
+    import llm_toll
 
-    assert hasattr(llm_budget, "track_costs")
-    assert hasattr(llm_budget, "BudgetExceededError")
-    assert hasattr(llm_budget, "LocalRateLimitError")
-    assert hasattr(llm_budget, "PricingMatrixOutdatedWarning")
-    assert hasattr(llm_budget, "PricingRegistry")
-    assert hasattr(llm_budget, "UsageStore")
-    assert hasattr(llm_budget, "CostReporter")
-    assert hasattr(llm_budget, "RateLimiter")
+    assert hasattr(llm_toll, "track_costs")
+    assert hasattr(llm_toll, "BudgetExceededError")
+    assert hasattr(llm_toll, "LocalRateLimitError")
+    assert hasattr(llm_toll, "PricingMatrixOutdatedWarning")
+    assert hasattr(llm_toll, "PricingRegistry")
+    assert hasattr(llm_toll, "UsageStore")
+    assert hasattr(llm_toll, "CostReporter")
+    assert hasattr(llm_toll, "RateLimiter")
 
 
 def test_budget_exceeded_error_is_exception() -> None:
-    from llm_budget import BudgetExceededError
+    from llm_toll import BudgetExceededError
 
     assert issubclass(BudgetExceededError, Exception)
 
 
 def test_local_rate_limit_error_is_exception() -> None:
-    from llm_budget import LocalRateLimitError
+    from llm_toll import LocalRateLimitError
 
     assert issubclass(LocalRateLimitError, Exception)
 
 
 def test_pricing_matrix_outdated_warning_is_warning() -> None:
-    from llm_budget import PricingMatrixOutdatedWarning
+    from llm_toll import PricingMatrixOutdatedWarning
 
     assert issubclass(PricingMatrixOutdatedWarning, UserWarning)
 
 
 def test_track_costs_bare_decorator() -> None:
-    from llm_budget import track_costs
+    from llm_toll import track_costs
 
     @track_costs
     def my_func() -> str:
@@ -51,7 +51,7 @@ def test_track_costs_bare_decorator() -> None:
 
 
 def test_track_costs_with_args() -> None:
-    from llm_budget import track_costs
+    from llm_toll import track_costs
 
     @track_costs(project="test", max_budget=10.0)
     def my_func() -> str:

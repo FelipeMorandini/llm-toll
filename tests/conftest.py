@@ -1,4 +1,4 @@
-"""Shared test fixtures for llm_budget."""
+"""Shared test fixtures for llm_toll."""
 
 from __future__ import annotations
 
@@ -10,4 +10,4 @@ import pytest
 @pytest.fixture
 def tmp_db_path(tmp_path: Path) -> str:
     """Provide a temporary SQLite database path."""
-    return str(tmp_path / "test_llm_budget.db")
+    return str(tmp_path / "test_llm_toll.db")

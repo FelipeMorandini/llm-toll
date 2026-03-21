@@ -1,15 +1,15 @@
-"""llm_budget — Lightweight decorator to track LLM API costs and enforce budgets."""
+"""llm_toll — Lightweight decorator to track LLM API costs and enforce budgets."""
 
-from llm_budget.decorator import set_reporter, set_store, track_costs
-from llm_budget.exceptions import (
+from llm_toll.decorator import set_reporter, set_store, track_costs
+from llm_toll.exceptions import (
     BudgetExceededError,
     LocalRateLimitError,
     PricingMatrixOutdatedWarning,
 )
-from llm_budget.pricing import PricingRegistry, default_registry
-from llm_budget.rate_limiter import RateLimiter
-from llm_budget.reporter import CostReporter
-from llm_budget.store import UsageStore
+from llm_toll.pricing import PricingRegistry, default_registry
+from llm_toll.rate_limiter import RateLimiter
+from llm_toll.reporter import CostReporter
+from llm_toll.store import UsageStore
 
 __version__ = "0.1.0"
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import warnings
 
-from llm_budget.exceptions import PricingMatrixOutdatedWarning
+from llm_toll.exceptions import PricingMatrixOutdatedWarning
 
 # Per-token pricing (input_cost, output_cost). Last updated: 2025-05.
 _BUILTIN_PRICING: dict[str, tuple[float, float]] = {

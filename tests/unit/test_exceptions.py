@@ -1,4 +1,4 @@
-"""Tests for custom exceptions in llm_budget."""
+"""Tests for custom exceptions in llm_toll."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import warnings
 
 import pytest
 
-from llm_budget.exceptions import (
+from llm_toll.exceptions import (
     BudgetExceededError,
     LocalRateLimitError,
     PricingMatrixOutdatedWarning,

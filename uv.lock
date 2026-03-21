@@ -770,7 +770,7 @@ wheels = [
 ]
 
 [[package]]
-name = "llm-budget"
+name = "llm-toll"
 version = "0.1.0"
 source = { editable = "." }
 

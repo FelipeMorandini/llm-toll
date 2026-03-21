@@ -8,8 +8,8 @@ import warnings
 import pytest
 from pytest import approx
 
-from llm_budget.exceptions import PricingMatrixOutdatedWarning
-from llm_budget.pricing import PricingRegistry
+from llm_toll.exceptions import PricingMatrixOutdatedWarning
+from llm_toll.pricing import PricingRegistry
 
 
 class TestPricingRegistry:

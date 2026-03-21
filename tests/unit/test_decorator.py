@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from llm_budget.decorator import set_store, track_costs
-from llm_budget.exceptions import BudgetExceededError
-from llm_budget.pricing import default_registry
-from llm_budget.store import UsageStore
+from llm_toll.decorator import set_store, track_costs
+from llm_toll.exceptions import BudgetExceededError
+from llm_toll.pricing import default_registry
+from llm_toll.store import UsageStore
 
 
 class TestTrackCostsDecorator:
