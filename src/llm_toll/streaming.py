@@ -50,8 +50,9 @@ def _is_sync_stream(response: object) -> bool:
 class StreamAccumulator:
     """Accumulates token usage from streaming chunks.
 
-    Supports OpenAI ``ChatCompletionChunk`` objects and Anthropic
-    streaming events via duck-typing.
+    Supports OpenAI ``ChatCompletionChunk`` objects, Anthropic
+    streaming events, and Google Gemini ``GenerateContentResponse``
+    chunks via duck-typing.
     """
 
     def __init__(self) -> None:
@@ -66,6 +67,8 @@ class StreamAccumulator:
         if self._try_openai_chunk(chunk):
             return
         if self._try_anthropic_event(chunk):
+            return
+        if self._try_gemini_chunk(chunk):
             return
 
     def _try_openai_chunk(self, chunk: object) -> bool:
@@ -138,6 +141,49 @@ class StreamAccumulator:
 
         return True
 
+    def _try_gemini_chunk(self, chunk: object) -> bool:
+        """Process a Gemini ``GenerateContentResponse`` streaming chunk.
+
+        Returns ``True`` if the chunk was recognised as Gemini.
+        """
+        if not (hasattr(chunk, "candidates") and hasattr(chunk, "usage_metadata")):
+            return False
+        if hasattr(chunk, "choices"):
+            return False
+
+        # Extract text from candidates[0].content.parts[0].text
+        candidates = getattr(chunk, "candidates", None)
+        if candidates:
+            try:
+                content = getattr(candidates[0], "content", None)
+                if content is not None:
+                    parts = getattr(content, "parts", None)
+                    if parts:
+                        text = getattr(parts[0], "text", None)
+                        if text:
+                            self._char_count += len(text)
+            except (IndexError, TypeError):
+                pass
+
+        # Extract model version
+        model_version = getattr(chunk, "model_version", None)
+        if isinstance(model_version, str) and model_version:
+            self._model = model_version
+        elif self._model is None:
+            self._model = ""  # Gemini may not carry model in chunks
+
+        # Extract usage from usage_metadata
+        usage_metadata = getattr(chunk, "usage_metadata", None)
+        if usage_metadata is not None:
+            raw_in = getattr(usage_metadata, "prompt_token_count", None)
+            raw_out = getattr(usage_metadata, "candidates_token_count", None)
+            if isinstance(raw_in, int) and isinstance(raw_out, int):
+                self._input_tokens = raw_in
+                self._output_tokens = raw_out
+                self._has_api_usage = True
+
+        return True
+
     def get_usage(self) -> tuple[str, int, int] | None:
         """Return ``(model, input_tokens, output_tokens)`` or ``None``.
 
@@ -160,8 +206,8 @@ class StreamAccumulator:
         estimated_out = max(1, self._char_count // 4)
         warnings.warn(
             "No API-provided token usage in stream; using character-based "
-            f"estimate ({estimated_out} output tokens). Pass "
-            "stream_options={'include_usage': True} for accurate counts.",
+            f"estimate ({estimated_out} output tokens). For accurate counts, "
+            "ensure your SDK provides usage data in streaming responses.",
             stacklevel=3,
         )
         return (model, 0, estimated_out)
