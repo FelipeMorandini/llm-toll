@@ -37,7 +37,10 @@ class BudgetExceededError(Exception):
                 f"Budget exceeded for project '{project}': "
                 f"${current_cost:.4f} >= ${max_budget:.4f}"
             )
-        super().__init__(message or "")
+        if message is not None:
+            super().__init__(message)
+        else:
+            super().__init__()
 
 
 class LocalRateLimitError(Exception):
@@ -69,7 +72,10 @@ class LocalRateLimitError(Exception):
             if retry_after is not None:
                 msg += f" Retry after {retry_after:.1f}s."
             message = msg
-        super().__init__(message or "")
+        if message is not None:
+            super().__init__(message)
+        else:
+            super().__init__()
 
 
 class PricingMatrixOutdatedWarning(UserWarning):
