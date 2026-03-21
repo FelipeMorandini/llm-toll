@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -141,7 +142,7 @@ class TestCostReporterThreadSafety:
 class TestCostReporterIntegration:
     """Integration test: decorator -> reporter pipeline."""
 
-    def test_decorator_calls_reporter(self, tmp_path: pytest.TempPathFactory) -> None:
+    def test_decorator_calls_reporter(self, tmp_path: Path) -> None:
         from llm_budget.decorator import set_reporter, set_store, track_costs
         from llm_budget.store import UsageStore
 

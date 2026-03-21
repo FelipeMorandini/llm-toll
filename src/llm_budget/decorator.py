@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import threading
 import warnings
@@ -163,7 +164,8 @@ def track_costs(
             store.log_usage(project, effective_model, input_tokens, output_tokens, cost)
 
             # 5b. Report cost
-            _get_reporter().report_call(effective_model, input_tokens, output_tokens, cost)
+            with contextlib.suppress(Exception):
+                _get_reporter().report_call(effective_model, input_tokens, output_tokens, cost)
 
             # 6. Return original response
             return response

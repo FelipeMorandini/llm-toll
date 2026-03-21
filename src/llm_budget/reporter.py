@@ -31,7 +31,7 @@ class CostReporter:
     ) -> None:
         self._enabled = enabled
         self._file: IO[str] = file or sys.stderr
-        self._use_color = not os.environ.get("NO_COLOR", "")
+        self._use_color = "NO_COLOR" not in os.environ
         self._session_cost: float = 0.0
         self._session_input_tokens: int = 0
         self._session_output_tokens: int = 0
@@ -67,19 +67,19 @@ class CostReporter:
 
     def report_session(self) -> None:
         """Print a session summary with totals."""
-        if not self._enabled or self._call_count == 0:
-            return
+        with self._lock:
+            if not self._enabled or self._call_count == 0:
+                return
+            cost = self._session_cost
+            input_t = self._session_input_tokens
+            output_t = self._session_output_tokens
+            count = self._call_count
 
         colored_total = self._colorize(
-            f"${self._session_cost:.4f}",
-            f"{_BOLD};{self._cost_color(self._session_cost)}",
+            f"${cost:.4f}",
+            f"{_BOLD};{self._cost_color(cost)}",
         )
-        line = (
-            f"[session] {self._call_count} calls, "
-            f"{self._session_input_tokens:,} in / "
-            f"{self._session_output_tokens:,} out, "
-            f"total {colored_total}"
-        )
+        line = f"[session] {count} calls, {input_t:,} in / {output_t:,} out, total {colored_total}"
         print(line, file=self._file)
 
     def reset(self) -> None:
