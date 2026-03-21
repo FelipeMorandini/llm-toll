@@ -32,14 +32,18 @@ def _is_sync_stream(response: object) -> bool:
     Matches Python generators and SDK stream objects (which expose
     both ``__next__`` and ``close``).  Plain iterators such as
     ``map``, ``filter``, and ``zip`` are excluded because they lack
-    a ``close`` method.
+    a ``close`` method.  The object must also be iterable (support
+    ``__iter__``) so that ``for chunk in stream`` works.
     """
     if isinstance(response, (str, bytes, dict, list)):
         return False
     if isinstance(response, types.GeneratorType):
         return True
     # SDK stream objects (e.g. openai.Stream) expose __next__ + close()
-    return hasattr(response, "__next__") and hasattr(response, "close")
+    if not (hasattr(response, "__next__") and hasattr(response, "close")):
+        return False
+    # Ensure the object is actually iterable
+    return hasattr(response, "__iter__")
 
 
 class StreamAccumulator:
@@ -234,12 +238,19 @@ def wrap_sync_stream(
             accumulator.process_chunk(chunk)
             yield chunk
     finally:
-        _finalize_stream(
-            accumulator,
-            project=project,
-            model_override=model_override,
-            max_budget=max_budget,
-            store=store,
-            registry=registry,
-            reporter=reporter,
-        )
+        try:
+            _finalize_stream(
+                accumulator,
+                project=project,
+                model_override=model_override,
+                max_budget=max_budget,
+                store=store,
+                registry=registry,
+                reporter=reporter,
+            )
+        finally:
+            # Close the underlying SDK stream if it supports it
+            close = getattr(stream, "close", None)
+            if callable(close):
+                with contextlib.suppress(Exception):
+                    close()

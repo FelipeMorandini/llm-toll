@@ -111,10 +111,13 @@ def track_costs(
     Workflow on each call:
     1. Check budget (if *max_budget* is set).
     2. Execute the wrapped function.
-    3. Extract token usage from the response.
-    4. Calculate cost via the pricing registry.
-    5. Log usage to the local SQLite store.
-    6. Return the original response unchanged.
+    3. If the response is a sync generator/stream, wrap it so cost is
+       tracked after the stream is consumed (the wrapper yields chunks
+       through transparently).
+    4. Otherwise, extract token usage from the response object.
+    5. Calculate cost via the pricing registry.
+    6. Log usage to the local SQLite store.
+    7. Return the original response (or wrapped stream) unchanged.
     """
 
     def decorator(func: F) -> F:
