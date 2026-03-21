@@ -1411,3 +1411,54 @@ def test_decorator_no_rate_limit_unlimited(tmp_db_path: str) -> None:
     finally:
         store.close()
         set_store(None)
+
+
+def test_local_ollama_decorator_full_flow(tmp_db_path: str) -> None:
+    """Local/Ollama models: zero cost, usage logged, rate limiting enforced."""
+    from llm_toll import LocalRateLimitError, UsageStore, set_store, track_costs
+
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+
+    try:
+
+        @track_costs(
+            project="ollama-test",
+            model="ollama/llama3",
+            rate_limit=5,
+            extract_usage=lambda _resp: ("ollama/llama3", 100, 50),
+        )
+        def call_llm() -> dict[str, Any]:
+            return {"result": "ok"}
+
+        # First call succeeds and is logged
+        result = call_llm()
+        assert result == {"result": "ok"}
+
+        # Verify cost is $0.0 in store
+        total_cost = store.get_total_cost("ollama-test")
+        assert total_cost == 0.0
+
+        # Verify usage was logged with correct tokens
+        logs = store.get_usage_logs(project="ollama-test")
+        assert len(logs) == 1
+        assert logs[0]["input_tokens"] == 100
+        assert logs[0]["output_tokens"] == 50
+        assert logs[0]["cost"] == 0.0
+
+        # Make 4 more calls to reach the rate limit of 5
+        for _ in range(4):
+            call_llm()
+
+        # 6th call should raise LocalRateLimitError
+        with pytest.raises(LocalRateLimitError) as exc_info:
+            call_llm()
+
+        err = exc_info.value
+        assert err.limit_type == "rpm"
+        assert err.retry_after is not None
+        assert err.retry_after > 0
+
+    finally:
+        store.close()
+        set_store(None)

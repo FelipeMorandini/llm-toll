@@ -31,6 +31,10 @@ _BUILTIN_PRICING: dict[str, tuple[float, float]] = {
     "gemini-2.0-flash": (1.0e-07, 4.0e-07),
     "gemini-2.5-pro": (1.25e-06, 1.0e-05),
     "gemini-2.5-flash": (1.5e-07, 6.0e-07),
+    # Local / Ollama — $0 cost, tracked for rate limiting and monitoring
+    "ollama/": (0.0, 0.0),
+    "local/": (0.0, 0.0),
+    "llama.cpp/": (0.0, 0.0),
 }
 
 

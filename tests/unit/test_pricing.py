@@ -213,3 +213,38 @@ class TestPricingRegistryBuiltins:
         for t in threads:
             t.join()
         assert errors == [], f"Thread safety violated: {errors}"
+
+
+class TestLocalOllamaPricing:
+    """Tests for Local/Ollama zero-cost provider support."""
+
+    def test_ollama_prefix_zero_cost(self) -> None:
+        registry = PricingRegistry()
+        cost = registry.get_cost("ollama/llama3", input_tokens=1000, output_tokens=500)
+        assert cost == 0.0
+
+    def test_local_prefix_zero_cost(self) -> None:
+        registry = PricingRegistry()
+        cost = registry.get_cost("local/mistral", input_tokens=1000, output_tokens=500)
+        assert cost == 0.0
+
+    def test_llama_cpp_prefix_zero_cost(self) -> None:
+        registry = PricingRegistry()
+        cost = registry.get_cost("llama.cpp/phi", input_tokens=1000, output_tokens=500)
+        assert cost == 0.0
+
+    def test_ollama_no_warning(self) -> None:
+        registry = PricingRegistry()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            registry.get_cost("ollama/llama3", input_tokens=1000, output_tokens=500)
+        pricing_warnings = [
+            w for w in caught if issubclass(w.category, PricingMatrixOutdatedWarning)
+        ]
+        assert len(pricing_warnings) == 0
+
+    def test_ollama_model_cached_after_prefix_match(self) -> None:
+        registry = PricingRegistry()
+        assert registry.has_model("ollama/llama3") is False
+        registry.get_cost("ollama/llama3", input_tokens=100, output_tokens=50)
+        assert registry.has_model("ollama/llama3") is True

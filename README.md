@@ -91,7 +91,26 @@ for chunk in stream_response("Hello"):
 | OpenAI | Yes (`openai` client) | Yes (chunk calculation) | Yes |
 | Anthropic | Yes (`anthropic` client) | Yes | Yes |
 | Google Gemini | Yes (`google-genai` client) | Yes | Yes |
-| Local/Ollama | No (Cost is $0) | N/A | Rate limiting only |
+| Local/Ollama | Via OpenAI-compat API | N/A | Rate limiting only ($0 cost) |
+
+### Local/Ollama Models
+
+Local models (`ollama/`, `local/`, `llama.cpp/` prefixes) are tracked at $0 cost. Rate limiting still applies — useful for managing local GPU resources.
+
+```python
+from llm_toll import track_costs
+
+@track_costs(
+    model="ollama/llama3",
+    rate_limit=10,       # limit local GPU to 10 RPM
+    extract_usage=lambda r: ("ollama/llama3", r["prompt_tokens"], r["completion_tokens"])
+)
+def local_inference(prompt):
+    # Ollama call here
+    pass
+```
+
+> **Tip:** Ollama's API is OpenAI-compatible, so if you use the `openai` client pointed at `localhost:11434`, auto-parsing works automatically.
 
 ## Error Handling
 
