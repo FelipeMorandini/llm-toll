@@ -726,26 +726,27 @@ def test_decorator_model_override_with_store(tmp_db_path: str) -> None:
 
 def test_budget_exceeded_message_contains_project(tmp_db_path: str) -> None:
     """BudgetExceededError message includes the project name."""
-    from llm_toll import BudgetExceededError, UsageStore, set_store, track_costs
+    from llm_toll import BudgetExceededError, UsageStore, default_registry, set_store, track_costs
 
     store = UsageStore(db_path=tmp_db_path)
     set_store(store)
 
     try:
         project_name = "my-important-project"
+        per_call_cost = default_registry.get_cost("gpt-4o", 1000, 500)
 
         @track_costs(
             project=project_name,
-            max_budget=0.0001,
+            max_budget=per_call_cost * 1.5,
             extract_usage=lambda resp: ("gpt-4o", 1000, 500),
         )
         def call_llm() -> dict[str, Any]:
             return {"result": "ok"}
 
-        # First call should succeed and push cost over the tiny budget
+        # First call succeeds (cost fits within 1.5x budget)
         call_llm()
 
-        # Second call should raise because budget is exceeded
+        # Second call raises: atomic post-call check rejects (2x > 1.5x)
         with pytest.raises(BudgetExceededError, match=project_name):
             call_llm()
     finally:
@@ -914,11 +915,8 @@ def test_decorator_auto_detect_with_budget(tmp_db_path: str) -> None:
 
     try:
         per_call_cost = default_registry.get_cost("gpt-4o", 1000, 500)
-        # Budget allows a few calls but not unlimited.
-        # The pre-call check rejects when current_cost >= max_budget, so with
-        # a budget of 2.5 * per_call_cost: calls 1 and 2 succeed (cost after
-        # each: 1x, 2x), call 3's pre-check sees 2x < 2.5x so it proceeds
-        # (cost becomes 3x), call 4's pre-check sees 3x >= 2.5x and raises.
+        # Budget allows exactly 2 calls: 2x fits within 2.5x, but the 3rd
+        # call's post-call atomic check rejects it (2x + 1x = 3x > 2.5x).
         max_budget = per_call_cost * 2.5
 
         @track_costs(project="budget-auto", max_budget=max_budget)
@@ -931,8 +929,8 @@ def test_decorator_auto_detect_with_budget(tmp_db_path: str) -> None:
                 call_llm()
                 call_count += 1
 
-        # 3 calls succeed, the 4th is blocked by the pre-call budget check
-        assert call_count == 3
+        # 2 calls succeed; the 3rd call's atomic post-call check rejects it
+        assert call_count == 2
 
         total_cost = store.get_total_cost("budget-auto")
         assert total_cost == approx(call_count * per_call_cost)
@@ -1045,3 +1043,55 @@ def test_reporter_disabled_no_output(tmp_db_path: str) -> None:
         store.close()
         set_store(None)
         set_reporter(None)
+
+
+def test_concurrent_decorated_calls_respect_budget(tmp_db_path: str) -> None:
+    """Concurrent threads calling a budgeted decorated function never exceed max_budget."""
+    import threading
+
+    from llm_toll import (
+        BudgetExceededError,
+        UsageStore,
+        default_registry,
+        set_store,
+        track_costs,
+    )
+
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+
+    try:
+        model = "gpt-4o"
+        input_tokens = 1000
+        output_tokens = 500
+        per_call_cost = default_registry.get_cost(model, input_tokens, output_tokens)
+        # Allow several calls but not unlimited
+        max_budget = per_call_cost * 10
+
+        @track_costs(
+            project="concurrent-test",
+            max_budget=max_budget,
+            extract_usage=lambda resp: (model, input_tokens, output_tokens),
+        )
+        def call_llm() -> dict[str, Any]:
+            return {"result": "ok"}
+
+        def worker() -> None:
+            for _ in range(50):
+                try:
+                    call_llm()
+                except BudgetExceededError:
+                    break
+
+        threads = [threading.Thread(target=worker) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        total_cost = store.get_total_cost("concurrent-test")
+        # Allow a tiny float tolerance for accumulated rounding
+        assert total_cost <= max_budget + 1e-9
+    finally:
+        store.close()
+        set_store(None)

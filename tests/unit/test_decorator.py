@@ -231,6 +231,40 @@ class TestTrackCostsBehavior:
 
         assert call_count == 0
 
+    def test_post_call_atomic_budget_enforcement(self, tmp_db_path: str) -> None:
+        store = self._make_store(tmp_db_path)
+
+        model = "gpt-4o"
+        input_tokens = 1000
+        output_tokens = 500
+        per_call_cost = default_registry.get_cost(model, input_tokens, output_tokens)
+
+        # Budget that allows exactly 1 call but not 2
+        max_budget = per_call_cost * 1.5
+
+        def extractor(resp: object) -> tuple[str, int, int]:
+            return (model, input_tokens, output_tokens)
+
+        @track_costs(project="atomic-test", max_budget=max_budget, extract_usage=extractor)
+        def call_llm() -> dict:
+            return {"text": "hello"}
+
+        # First call succeeds and nearly exhausts the budget
+        result = call_llm()
+        assert result == {"text": "hello"}
+        assert store.get_total_cost("atomic-test") == pytest.approx(per_call_cost)
+
+        # Second call: pre-call check passes (per_call_cost < max_budget),
+        # but the post-call atomic check in log_usage_if_within_budget
+        # prevents logging and raises BudgetExceededError.
+        with pytest.raises(BudgetExceededError):
+            call_llm()
+
+        # Only the first call's cost was logged
+        assert store.get_total_cost("atomic-test") == pytest.approx(per_call_cost)
+        logs = store.get_usage_logs("atomic-test")
+        assert len(logs) == 1
+
     def test_multiple_calls_accumulate_cost(self, tmp_db_path: str) -> None:
         store = self._make_store(tmp_db_path)
 

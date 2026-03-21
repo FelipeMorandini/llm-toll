@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from llm_toll.exceptions import BudgetExceededError
 from llm_toll.store import UsageStore
 
 
@@ -214,4 +215,145 @@ class TestUsageStorePersistence:
         assert store.get_total_cost("p") == pytest.approx(0.50)
         logs = store.get_usage_logs("p")
         assert len(logs) == 2
+        store.close()
+
+
+class TestLogUsageIfWithinBudget:
+    """Tests for UsageStore.log_usage_if_within_budget atomic budget check."""
+
+    def test_logs_usage_when_within_budget(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        result = store.log_usage_if_within_budget(
+            project="p",
+            model="gpt-4o",
+            input_tokens=100,
+            output_tokens=50,
+            cost=0.25,
+            max_budget=1.0,
+        )
+        assert result == pytest.approx(0.25)
+        assert store.get_total_cost("p") == pytest.approx(0.25)
+        logs = store.get_usage_logs("p")
+        assert len(logs) == 1
+        store.close()
+
+    def test_raises_when_already_at_budget(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        # Pre-seed cost exactly at max_budget
+        store.log_usage(project="p", model="gpt-4o", input_tokens=10, output_tokens=5, cost=1.0)
+        with pytest.raises(BudgetExceededError):
+            store.log_usage_if_within_budget(
+                project="p",
+                model="gpt-4o",
+                input_tokens=10,
+                output_tokens=5,
+                cost=0.10,
+                max_budget=1.0,
+            )
+        # No new log should have been written
+        logs = store.get_usage_logs("p")
+        assert len(logs) == 1
+        assert store.get_total_cost("p") == pytest.approx(1.0)
+        store.close()
+
+    def test_raises_when_already_over_budget(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        # Pre-seed cost above max_budget
+        store.log_usage(project="p", model="gpt-4o", input_tokens=10, output_tokens=5, cost=1.50)
+        with pytest.raises(BudgetExceededError):
+            store.log_usage_if_within_budget(
+                project="p",
+                model="gpt-4o",
+                input_tokens=10,
+                output_tokens=5,
+                cost=0.10,
+                max_budget=1.0,
+            )
+        store.close()
+
+    def test_raises_when_call_would_exceed_budget(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        # Pre-seed just under budget
+        store.log_usage(project="p", model="gpt-4o", input_tokens=10, output_tokens=5, cost=0.95)
+        with pytest.raises(BudgetExceededError):
+            store.log_usage_if_within_budget(
+                project="p",
+                model="gpt-4o",
+                input_tokens=10,
+                output_tokens=5,
+                cost=0.10,
+                max_budget=1.0,
+            )
+        # No new log should have been written
+        logs = store.get_usage_logs("p")
+        assert len(logs) == 1
+        assert store.get_total_cost("p") == pytest.approx(0.95)
+        store.close()
+
+    def test_exactly_at_budget_succeeds(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        # Pre-seed so that adding cost lands exactly on max_budget
+        store.log_usage(project="p", model="gpt-4o", input_tokens=10, output_tokens=5, cost=0.75)
+        result = store.log_usage_if_within_budget(
+            project="p",
+            model="gpt-4o",
+            input_tokens=10,
+            output_tokens=5,
+            cost=0.25,
+            max_budget=1.0,
+        )
+        assert result == pytest.approx(1.0)
+        assert store.get_total_cost("p") == pytest.approx(1.0)
+        store.close()
+
+    def test_zero_cost_within_budget(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        # Zero-cost usage should succeed as long as the project is still within budget.
+        store.log_usage(project="p", model="gpt-4o", input_tokens=10, output_tokens=5, cost=1.0)
+        # Note: current_cost (1.0) >= max_budget (1.0) for project "p" would trigger the first
+        # guard in log_usage_if_within_budget, so we use a different project with an open budget.
+        result = store.log_usage_if_within_budget(
+            project="p2",
+            model="gpt-4o",
+            input_tokens=10,
+            output_tokens=5,
+            cost=0.0,
+            max_budget=1.0,
+        )
+        assert result == pytest.approx(0.0)
+        store.close()
+
+    def test_concurrent_threads_respect_budget(self, tmp_db_path: str) -> None:
+        store = UsageStore(db_path=tmp_db_path)
+        successes: list[float] = []
+        failures: list[BudgetExceededError] = []
+        errors: list[Exception] = []
+
+        def attempt() -> None:
+            try:
+                result = store.log_usage_if_within_budget(
+                    project="p",
+                    model="gpt-4o",
+                    input_tokens=10,
+                    output_tokens=5,
+                    cost=0.10,
+                    max_budget=1.0,
+                )
+                successes.append(result)
+            except BudgetExceededError as exc:
+                failures.append(exc)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=attempt) for _ in range(20)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == []
+        # Exactly 10 calls should succeed (10 * 0.10 == 1.0)
+        assert len(successes) == 10
+        assert len(failures) == 10
+        assert store.get_total_cost("p") == pytest.approx(1.0)
         store.close()

@@ -160,8 +160,13 @@ def track_costs(
             # 4. Calculate cost
             cost = default_registry.get_cost(effective_model, input_tokens, output_tokens)
 
-            # 5. Log usage
-            store.log_usage(project, effective_model, input_tokens, output_tokens, cost)
+            # 5. Log usage (atomic budget check when max_budget is set)
+            if max_budget is not None:
+                store.log_usage_if_within_budget(
+                    project, effective_model, input_tokens, output_tokens, cost, max_budget
+                )
+            else:
+                store.log_usage(project, effective_model, input_tokens, output_tokens, cost)
 
             # 5b. Report cost
             with contextlib.suppress(Exception):

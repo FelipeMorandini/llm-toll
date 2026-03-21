@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from llm_toll.exceptions import BudgetExceededError
+
 
 class UsageStore:
     """Local persistence layer using SQLite.
@@ -127,6 +129,81 @@ class UsageStore:
                 f"Failed to log usage to {self._db_path}: {exc}",
                 stacklevel=2,
             )
+
+    def log_usage_if_within_budget(
+        self,
+        project: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        max_budget: float,
+    ) -> float:
+        """Atomically check budget and log usage in a single transaction.
+
+        If the current accumulated cost already meets or exceeds
+        *max_budget*, raises :class:`BudgetExceededError` without
+        logging the usage.  If the new cost would push the total
+        **over** *max_budget*, raises the same exception.  Otherwise
+        the usage is logged and the new total cost is returned.
+
+        Reaching *exactly* ``max_budget`` is allowed (i.e. the
+        post-add comparison uses ``>`` not ``>=``).
+
+        On database errors the call fails open: a warning is issued
+        and the method returns ``0.0`` so callers may treat this as
+        "no cost recorded" (unlike :meth:`log_usage`, which returns
+        ``None``).
+        """
+        now = _utc_now_iso()
+        try:
+            with self._lock:
+                conn = self._get_conn()
+                with conn:
+                    row = conn.execute(
+                        "SELECT total_cost FROM budgets WHERE project = ?",
+                        (project,),
+                    ).fetchone()
+                    current_cost = float(row[0]) if row is not None else 0.0
+
+                    if current_cost >= max_budget:
+                        raise BudgetExceededError(
+                            project=project,
+                            current_cost=current_cost,
+                            max_budget=max_budget,
+                        )
+
+                    new_total = current_cost + cost
+                    if new_total > max_budget:
+                        raise BudgetExceededError(
+                            project=project,
+                            current_cost=new_total,
+                            max_budget=max_budget,
+                        )
+
+                    conn.execute(
+                        "INSERT INTO usage_logs "
+                        "(project, model, input_tokens, output_tokens, cost, created_at) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (project, model, input_tokens, output_tokens, cost, now),
+                    )
+                    conn.execute(
+                        "INSERT INTO budgets (project, total_cost, updated_at) "
+                        "VALUES (?, ?, ?) "
+                        "ON CONFLICT (project) DO UPDATE SET "
+                        "total_cost = total_cost + excluded.total_cost, "
+                        "updated_at = excluded.updated_at",
+                        (project, cost, now),
+                    )
+            return new_total
+        except BudgetExceededError:
+            raise
+        except sqlite3.Error as exc:
+            warnings.warn(
+                f"Failed to log usage to {self._db_path}: {exc}",
+                stacklevel=2,
+            )
+            return 0.0
 
     def get_total_cost(self, project: str) -> float:
         """Get the total accumulated cost for a project.

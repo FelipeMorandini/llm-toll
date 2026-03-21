@@ -1,4 +1,4 @@
-# llm_toll
+# llm-toll
 
 A lightweight, drop-in Python decorator to track costs, monitor token usage, and enforce budget and rate limits for LLM API calls.
 
