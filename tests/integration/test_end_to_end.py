@@ -1090,7 +1090,8 @@ def test_concurrent_decorated_calls_respect_budget(tmp_db_path: str) -> None:
             t.join()
 
         total_cost = store.get_total_cost("concurrent-test")
-        assert total_cost <= max_budget
+        # Allow a tiny float tolerance for accumulated rounding
+        assert total_cost <= max_budget + 1e-9
     finally:
         store.close()
         set_store(None)

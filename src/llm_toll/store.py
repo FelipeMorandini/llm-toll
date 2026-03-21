@@ -151,8 +151,9 @@ class UsageStore:
         post-add comparison uses ``>`` not ``>=``).
 
         On database errors the call fails open: a warning is issued
-        and the cost is returned as ``0.0`` (matching the behaviour
-        of :meth:`log_usage`).
+        and the method returns ``0.0`` so callers may treat this as
+        "no cost recorded" (unlike :meth:`log_usage`, which returns
+        ``None``).
         """
         now = _utc_now_iso()
         try:
@@ -176,7 +177,7 @@ class UsageStore:
                     if new_total > max_budget:
                         raise BudgetExceededError(
                             project=project,
-                            current_cost=current_cost,
+                            current_cost=new_total,
                             max_budget=max_budget,
                         )
 

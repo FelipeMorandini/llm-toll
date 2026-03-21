@@ -308,10 +308,10 @@ class TestLogUsageIfWithinBudget:
 
     def test_zero_cost_within_budget(self, tmp_db_path: str) -> None:
         store = UsageStore(db_path=tmp_db_path)
-        # Even at max budget, zero cost should succeed
+        # Zero-cost usage should succeed as long as the project is still within budget.
         store.log_usage(project="p", model="gpt-4o", input_tokens=10, output_tokens=5, cost=1.0)
-        # current_cost (1.0) >= max_budget (1.0) triggers the first guard,
-        # so use a budget that is still open
+        # Note: current_cost (1.0) >= max_budget (1.0) for project "p" would trigger the first
+        # guard in log_usage_if_within_budget, so we use a different project with an open budget.
         result = store.log_usage_if_within_budget(
             project="p2",
             model="gpt-4o",
