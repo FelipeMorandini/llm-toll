@@ -24,6 +24,7 @@ def test_full_public_api_importable() -> None:
         "UsageStore",
         "__version__",
         "default_registry",
+        "set_reporter",
         "set_store",
         "track_costs",
     ]
@@ -938,3 +939,109 @@ def test_decorator_auto_detect_with_budget(tmp_db_path: str) -> None:
     finally:
         store.close()
         set_store(None)
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: CostReporter + decorator pipeline
+# ---------------------------------------------------------------------------
+
+
+def test_decorator_reports_to_custom_reporter(tmp_db_path: str) -> None:
+    """Decorator reports per-call cost to a custom CostReporter writing to StringIO."""
+    from io import StringIO
+
+    from llm_budget import CostReporter, UsageStore, set_reporter, set_store, track_costs
+
+    buf = StringIO()
+    reporter = CostReporter(file=buf)
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+    set_reporter(reporter)
+
+    try:
+
+        @track_costs(
+            project="reporter-test",
+            extract_usage=lambda resp: ("gpt-4o", 1000, 500),
+        )
+        def call_llm() -> dict[str, Any]:
+            return {"result": "ok"}
+
+        call_llm()
+
+        output = buf.getvalue()
+        assert "gpt-4o" in output
+        assert "$" in output
+    finally:
+        store.close()
+        set_store(None)
+        set_reporter(None)
+
+
+def test_reporter_session_after_multiple_decorated_calls(tmp_db_path: str) -> None:
+    """After 3 decorated calls, report_session output contains '3 calls' and total cost."""
+    from io import StringIO
+
+    from llm_budget import CostReporter, UsageStore, set_reporter, set_store, track_costs
+
+    buf = StringIO()
+    reporter = CostReporter(file=buf)
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+    set_reporter(reporter)
+
+    try:
+
+        @track_costs(
+            project="session-test",
+            extract_usage=lambda resp: ("gpt-4o", 1000, 500),
+        )
+        def call_llm() -> dict[str, Any]:
+            return {"result": "ok"}
+
+        call_llm()
+        call_llm()
+        call_llm()
+
+        reporter.report_session()
+
+        output = buf.getvalue()
+        assert "3 calls" in output
+        assert "$" in output
+    finally:
+        store.close()
+        set_store(None)
+        set_reporter(None)
+
+
+def test_reporter_disabled_no_output(tmp_db_path: str) -> None:
+    """CostReporter(enabled=False) produces no output even after decorated calls."""
+    from io import StringIO
+
+    from llm_budget import CostReporter, UsageStore, set_reporter, set_store, track_costs
+
+    buf = StringIO()
+    reporter = CostReporter(enabled=False, file=buf)
+    store = UsageStore(db_path=tmp_db_path)
+    set_store(store)
+    set_reporter(reporter)
+
+    try:
+
+        @track_costs(
+            project="disabled-reporter-test",
+            extract_usage=lambda resp: ("gpt-4o", 1000, 500),
+        )
+        def call_llm() -> dict[str, Any]:
+            return {"result": "ok"}
+
+        call_llm()
+        call_llm()
+        reporter.report_session()
+
+        output = buf.getvalue()
+        assert output == ""
+    finally:
+        store.close()
+        set_store(None)
+        set_reporter(None)

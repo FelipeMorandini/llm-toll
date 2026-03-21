@@ -1,6 +1,6 @@
 """llm_budget — Lightweight decorator to track LLM API costs and enforce budgets."""
 
-from llm_budget.decorator import set_store, track_costs
+from llm_budget.decorator import set_reporter, set_store, track_costs
 from llm_budget.exceptions import (
     BudgetExceededError,
     LocalRateLimitError,
@@ -23,6 +23,7 @@ __all__ = [
     "UsageStore",
     "__version__",
     "default_registry",
+    "set_reporter",
     "set_store",
     "track_costs",
 ]
