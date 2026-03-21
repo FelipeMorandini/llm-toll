@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import functools
+import inspect
 import threading
 import warnings
 from collections.abc import Callable
 from typing import Any, TypeVar, overload
 
+from llm_toll.async_streaming import _is_async_stream, wrap_async_stream
 from llm_toll.exceptions import BudgetExceededError
 from llm_toll.parsers import auto_detect_usage
 from llm_toll.pricing import default_registry
@@ -101,25 +104,18 @@ def track_costs(
 ) -> F | Callable[[F], F]:
     """Decorator to track costs, enforce budgets, and rate-limit LLM API calls.
 
-    Can be used with or without arguments::
+    Can be used with or without arguments on both sync and async functions::
 
         @track_costs
         def my_func(): ...
 
         @track_costs(project="my-project", max_budget=10.0)
-        def my_func(): ...
+        async def my_func(): ...
 
-    Workflow on each call:
-    1. Check budget (if *max_budget* is set).
-    2. Check rate limits (if *rate_limit* or *tpm_limit* is set).
-    3. Execute the wrapped function.
-    4. If the response is a sync generator/stream, wrap it so cost is
-       tracked after the stream is consumed (the wrapper yields chunks
-       through transparently).
-    5. Otherwise, extract token usage from the response object.
-    6. Calculate cost via the pricing registry.
-    7. Record tokens for rate limiting, log usage to the local SQLite store.
-    8. Return the original response (or wrapped stream) unchanged.
+    Async functions are auto-detected at decoration time.  SQLite
+    operations run in a thread pool via ``asyncio.to_thread`` so the
+    event loop is never blocked.  Async generators (streaming) are
+    wrapped transparently, just like sync generators.
     """
 
     def decorator(func: F) -> F:
@@ -129,6 +125,137 @@ def track_costs(
             else None
         )
 
+        # --- Async generator path ---
+        if inspect.isasyncgenfunction(func):
+
+            @functools.wraps(func)
+            async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
+                store = _get_store()
+
+                if max_budget is not None:
+                    current_cost = await asyncio.to_thread(store.get_total_cost, project)
+                    if current_cost >= max_budget:
+                        raise BudgetExceededError(
+                            project=project,
+                            current_cost=current_cost,
+                            max_budget=max_budget,
+                        )
+
+                if limiter is not None:
+                    limiter.check()
+
+                async_stream = func(*args, **kwargs)
+                wrapped = wrap_async_stream(
+                    async_stream,
+                    project=project,
+                    model_override=model,
+                    max_budget=max_budget,
+                    store=store,
+                    registry=default_registry,
+                    reporter=_get_reporter(),
+                    rate_limiter=limiter,
+                )
+                try:
+                    async for chunk in wrapped:
+                        yield chunk
+                finally:
+                    with contextlib.suppress(Exception):
+                        await wrapped.aclose()
+
+            return async_gen_wrapper  # type: ignore[return-value]
+
+        # --- Async coroutine path ---
+        if inspect.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+                store = _get_store()
+
+                if max_budget is not None:
+                    current_cost = await asyncio.to_thread(store.get_total_cost, project)
+                    if current_cost >= max_budget:
+                        raise BudgetExceededError(
+                            project=project,
+                            current_cost=current_cost,
+                            max_budget=max_budget,
+                        )
+
+                if limiter is not None:
+                    limiter.check()
+
+                response = await func(*args, **kwargs)
+
+                if _is_async_stream(response):
+                    return wrap_async_stream(
+                        response,
+                        project=project,
+                        model_override=model,
+                        max_budget=max_budget,
+                        store=store,
+                        registry=default_registry,
+                        reporter=_get_reporter(),
+                        rate_limiter=limiter,
+                    )
+
+                usage_info: tuple[str, int, int] | None = None
+
+                if response is not None:
+                    usage_info = auto_detect_usage(response)
+
+                if usage_info is None and extract_usage is not None:
+                    try:
+                        usage_info = extract_usage(response)
+                    except Exception:
+                        warnings.warn(
+                            "extract_usage callback raised an exception; "
+                            "skipping cost tracking for this call.",
+                            stacklevel=2,
+                        )
+                        if limiter is not None:
+                            limiter.record(tokens=0)
+                        return response
+
+                if usage_info is None:
+                    if limiter is not None:
+                        limiter.record(tokens=0)
+                    return response
+
+                detected_model, input_tokens, output_tokens = usage_info
+                effective_model = model if model is not None else detected_model
+
+                if limiter is not None:
+                    limiter.record(tokens=input_tokens + output_tokens)
+
+                cost = default_registry.get_cost(effective_model, input_tokens, output_tokens)
+
+                if max_budget is not None:
+                    await asyncio.to_thread(
+                        store.log_usage_if_within_budget,
+                        project,
+                        effective_model,
+                        input_tokens,
+                        output_tokens,
+                        cost,
+                        max_budget,
+                    )
+                else:
+                    await asyncio.to_thread(
+                        store.log_usage,
+                        project,
+                        effective_model,
+                        input_tokens,
+                        output_tokens,
+                        cost,
+                    )
+
+                with contextlib.suppress(Exception):
+                    _get_reporter().report_call(effective_model, input_tokens, output_tokens, cost)
+
+                return response
+
+            return async_wrapper  # type: ignore[return-value]
+
+        # --- Sync path (unchanged) ---
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             store = _get_store()

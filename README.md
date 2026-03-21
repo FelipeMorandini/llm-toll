@@ -84,6 +84,33 @@ for chunk in stream_response("Hello"):
 
 > **Note:** For accurate token counts with OpenAI streaming, pass `stream_options={"include_usage": True}`. Without it, output tokens are estimated using a character-based heuristic.
 
+### Async Support
+
+The decorator auto-detects async functions and async generators — no changes needed:
+
+```python
+from llm_toll import track_costs
+
+@track_costs(project="my_app", max_budget=5.00)
+async def async_chat(text):
+    response = await client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": text}]
+    )
+    return response
+
+@track_costs(project="my_app")
+async def async_stream(text):
+    stream = await client.chat.completions.create(
+        model="gpt-4o", messages=[{"role": "user", "content": text}],
+        stream=True, stream_options={"include_usage": True},
+    )
+    async for chunk in stream:
+        yield chunk
+```
+
+SQLite operations run in a thread pool (`asyncio.to_thread`) so the event loop is never blocked.
+
 ## Supported Providers
 
 | Provider | SDK Auto-Parsing | Streaming Support | Custom Model Overrides |
