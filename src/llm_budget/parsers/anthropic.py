@@ -27,7 +27,14 @@ def parse_anthropic_response(response: object) -> tuple[str, int, int] | None:
     if not (hasattr(usage, "input_tokens") and hasattr(usage, "output_tokens")):
         return None
 
-    model: str = response.model
-    input_tokens: int = getattr(usage, "input_tokens", 0) or 0
-    output_tokens: int = getattr(usage, "output_tokens", 0) or 0
-    return (model, input_tokens, output_tokens)
+    model = response.model
+    if not isinstance(model, str) or not model:
+        return None
+
+    raw_in = getattr(usage, "input_tokens", 0)
+    raw_out = getattr(usage, "output_tokens", 0)
+    if not isinstance(raw_in, int):
+        raw_in = 0
+    if not isinstance(raw_out, int):
+        raw_out = 0
+    return (model, raw_in or 0, raw_out or 0)
