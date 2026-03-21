@@ -23,6 +23,26 @@ class _MockOpenAIResponse:
         self.choices = choices if choices is not None else []
 
 
+class _MockUsageMetadataGemini:
+    def __init__(self, prompt_token_count: int | None, candidates_token_count: int | None) -> None:
+        self.prompt_token_count = prompt_token_count
+        self.candidates_token_count = candidates_token_count
+
+
+class _MockGeminiResponse:
+    def __init__(
+        self,
+        usage_metadata: _MockUsageMetadataGemini | None,
+        candidates: list | None = None,
+        model_version: str | None = None,
+    ) -> None:
+        self.usage_metadata = usage_metadata
+        self.candidates = candidates if candidates is not None else []
+        # Only set model_version as attribute if provided (mimics real SDK)
+        if model_version is not None:
+            self.model_version = model_version
+
+
 class _MockUsageAnthropic:
     def __init__(self, input_tokens: int | None, output_tokens: int | None) -> None:
         self.input_tokens = input_tokens
@@ -221,3 +241,70 @@ class TestAutoDetectIntegration:
     def test_unknown_object_returns_none(self) -> None:
         detect = self._fresh_auto_detect()
         assert detect({"unknown": "object"}) is None
+
+    def test_gemini_response_auto_detected(self) -> None:
+        detect = self._fresh_auto_detect()
+        usage = _MockUsageMetadataGemini(prompt_token_count=300, candidates_token_count=120)
+        resp = _MockGeminiResponse(usage_metadata=usage, model_version="gemini-1.5-pro")
+        result = detect(resp)
+        assert result == ("gemini-1.5-pro", 300, 120)
+
+
+class TestGeminiParser:
+    """Tests for the Gemini SDK response parser."""
+
+    def test_happy_path(self) -> None:
+        usage = _MockUsageMetadataGemini(prompt_token_count=300, candidates_token_count=120)
+        resp = _MockGeminiResponse(
+            usage_metadata=usage, candidates=["c"], model_version="gemini-1.5-pro"
+        )
+        result = parse_gemini_response(resp)
+        assert result == ("gemini-1.5-pro", 300, 120)
+
+    def test_happy_path_without_model_version(self) -> None:
+        usage = _MockUsageMetadataGemini(prompt_token_count=100, candidates_token_count=50)
+        resp = _MockGeminiResponse(usage_metadata=usage)
+        result = parse_gemini_response(resp)
+        assert result is not None
+        model, inp, out = result
+        assert model == ""
+        assert inp == 100
+        assert out == 50
+
+    def test_usage_metadata_none(self) -> None:
+        resp = _MockGeminiResponse(usage_metadata=None)
+        assert parse_gemini_response(resp) is None
+
+    def test_missing_candidates_attr(self) -> None:
+        usage = _MockUsageMetadataGemini(prompt_token_count=10, candidates_token_count=5)
+        resp = type("Obj", (), {"usage_metadata": usage})()
+        assert parse_gemini_response(resp) is None
+
+    def test_missing_usage_metadata_attr(self) -> None:
+        resp = type("Obj", (), {"candidates": []})()
+        assert parse_gemini_response(resp) is None
+
+    def test_non_int_token_counts(self) -> None:
+        usage = _MockUsageMetadataGemini(
+            prompt_token_count="not_int",  # type: ignore[arg-type]
+            candidates_token_count="bad",  # type: ignore[arg-type]
+        )
+        resp = _MockGeminiResponse(usage_metadata=usage, model_version="gemini-1.5-pro")
+        result = parse_gemini_response(resp)
+        assert result == ("gemini-1.5-pro", 0, 0)
+
+    def test_openai_response_rejected(self) -> None:
+        usage = _MockUsageOpenAI(prompt_tokens=100, completion_tokens=50)
+        resp = _MockOpenAIResponse(model="gpt-4o", usage=usage)
+        assert parse_gemini_response(resp) is None
+
+    def test_anthropic_response_rejected(self) -> None:
+        usage = _MockUsageAnthropic(input_tokens=200, output_tokens=80)
+        resp = _MockAnthropicResponse(model="claude-sonnet-4-20250514", usage=usage)
+        assert parse_gemini_response(resp) is None
+
+    def test_dict_input(self) -> None:
+        assert parse_gemini_response({"usage_metadata": {}, "candidates": []}) is None
+
+    def test_none_input(self) -> None:
+        assert parse_gemini_response(None) is None

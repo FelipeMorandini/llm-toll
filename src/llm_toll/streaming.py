@@ -67,6 +67,8 @@ class StreamAccumulator:
             return
         if self._try_anthropic_event(chunk):
             return
+        if self._try_gemini_chunk(chunk):
+            return
 
     def _try_openai_chunk(self, chunk: object) -> bool:
         """Process an OpenAI ``ChatCompletionChunk``-like object.
@@ -135,6 +137,49 @@ class StreamAccumulator:
                 if isinstance(raw_out, int):
                     self._output_tokens = raw_out
                     self._has_api_usage = True
+
+        return True
+
+    def _try_gemini_chunk(self, chunk: object) -> bool:
+        """Process a Gemini ``GenerateContentResponse`` streaming chunk.
+
+        Returns ``True`` if the chunk was recognised as Gemini.
+        """
+        if not (hasattr(chunk, "candidates") and hasattr(chunk, "usage_metadata")):
+            return False
+        if hasattr(chunk, "choices"):
+            return False
+
+        # Extract text from candidates[0].content.parts[0].text
+        candidates = getattr(chunk, "candidates", None)
+        if candidates:
+            try:
+                content = getattr(candidates[0], "content", None)
+                if content is not None:
+                    parts = getattr(content, "parts", None)
+                    if parts:
+                        text = getattr(parts[0], "text", None)
+                        if text:
+                            self._char_count += len(text)
+            except (IndexError, TypeError):
+                pass
+
+        # Extract model version
+        model_version = getattr(chunk, "model_version", None)
+        if isinstance(model_version, str) and model_version:
+            self._model = model_version
+        elif self._model is None:
+            self._model = ""  # Gemini may not carry model in chunks
+
+        # Extract usage from usage_metadata
+        usage_metadata = getattr(chunk, "usage_metadata", None)
+        if usage_metadata is not None:
+            raw_in = getattr(usage_metadata, "prompt_token_count", None)
+            raw_out = getattr(usage_metadata, "candidates_token_count", None)
+            if isinstance(raw_in, int) and isinstance(raw_out, int):
+                self._input_tokens = raw_in
+                self._output_tokens = raw_out
+                self._has_api_usage = True
 
         return True
 

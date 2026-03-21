@@ -100,6 +100,68 @@ class _MockTextDelta:
 
 
 # ---------------------------------------------------------------------------
+# Mock classes for Gemini streaming chunks
+# ---------------------------------------------------------------------------
+
+
+class _MockGeminiUsageMetadata:
+    def __init__(
+        self,
+        prompt_token_count: int | None = None,
+        candidates_token_count: int | None = None,
+    ) -> None:
+        self.prompt_token_count = prompt_token_count
+        self.candidates_token_count = candidates_token_count
+
+
+class _MockGeminiPart:
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _MockGeminiContent:
+    def __init__(self, parts: list[_MockGeminiPart]) -> None:
+        self.parts = parts
+
+
+class _MockGeminiCandidate:
+    def __init__(self, content: _MockGeminiContent) -> None:
+        self.content = content
+
+
+class _MockGeminiChunk:
+    """Mimics a Gemini GenerateContentResponse streaming chunk."""
+
+    def __init__(
+        self,
+        text: str | None = None,
+        usage_metadata: _MockGeminiUsageMetadata | None = None,
+        model_version: str | None = None,
+    ) -> None:
+        if text is not None:
+            self.candidates = [_MockGeminiCandidate(_MockGeminiContent([_MockGeminiPart(text)]))]
+        else:
+            self.candidates = []
+        self.usage_metadata = usage_metadata
+        if model_version is not None:
+            self.model_version = model_version
+
+
+def _make_gemini_chunks(
+    texts: list[str],
+    final_usage: _MockGeminiUsageMetadata | None = None,
+    model_version: str | None = None,
+) -> list[_MockGeminiChunk]:
+    """Build a list of Gemini-like chunks, with optional usage on the last chunk."""
+    chunks = [_MockGeminiChunk(text=t, model_version=model_version) for t in texts]
+    if final_usage is not None:
+        chunks.append(
+            _MockGeminiChunk(text=None, usage_metadata=final_usage, model_version=model_version)
+        )
+    return chunks
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -331,6 +393,76 @@ class TestStreamAccumulatorAnthropic:
         assert model == "claude-sonnet-4-20250514"
         assert inp == 150
         assert out == 0  # _has_api_usage is True from message_start, output defaults to 0
+
+
+# ===========================================================================
+# TestStreamAccumulatorGemini
+# ===========================================================================
+
+
+class TestStreamAccumulatorGemini:
+    def test_accumulates_gemini_chunks_with_usage(self) -> None:
+        usage = _MockGeminiUsageMetadata(prompt_token_count=150, candidates_token_count=60)
+        chunks = _make_gemini_chunks(
+            ["Hello", " from", " Gemini"],
+            final_usage=usage,
+            model_version="gemini-1.5-pro",
+        )
+
+        acc = StreamAccumulator()
+        for chunk in chunks:
+            acc.process_chunk(chunk)
+
+        result = acc.get_usage()
+        assert result is not None
+        model, inp, out = result
+        assert model == "gemini-1.5-pro"
+        assert inp == 150
+        assert out == 60
+
+    def test_accumulates_gemini_chunks_without_usage(self) -> None:
+        """No usage metadata on any chunk -> falls back to character-based estimation."""
+        chunks = _make_gemini_chunks(
+            ["Hello", " from", " Gemini"],
+            model_version="gemini-1.5-pro",
+        )
+
+        acc = StreamAccumulator()
+        for chunk in chunks:
+            acc.process_chunk(chunk)
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = acc.get_usage()
+
+        assert result is not None
+        model, inp, out = result
+        assert model == "gemini-1.5-pro"
+        assert inp == 0  # unknown from stream alone
+        assert out == estimate_tokens("Hello from Gemini")
+        # Should have issued a warning about estimation
+        assert len(w) == 1
+        assert "estimate" in str(w[0].message).lower()
+
+    def test_gemini_chunks_without_model_version(self) -> None:
+        """Chunks without model_version -> model is empty string."""
+        usage = _MockGeminiUsageMetadata(prompt_token_count=50, candidates_token_count=25)
+        chunks = _make_gemini_chunks(
+            ["text"],
+            final_usage=usage,
+            model_version=None,  # no model_version attribute
+        )
+
+        acc = StreamAccumulator()
+        for chunk in chunks:
+            acc.process_chunk(chunk)
+
+        result = acc.get_usage()
+        assert result is not None
+        model, inp, out = result
+        assert model == ""
+        assert inp == 50
+        assert out == 25
 
 
 # ===========================================================================
