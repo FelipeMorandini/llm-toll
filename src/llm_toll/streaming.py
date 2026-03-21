@@ -50,8 +50,9 @@ def _is_sync_stream(response: object) -> bool:
 class StreamAccumulator:
     """Accumulates token usage from streaming chunks.
 
-    Supports OpenAI ``ChatCompletionChunk`` objects and Anthropic
-    streaming events via duck-typing.
+    Supports OpenAI ``ChatCompletionChunk`` objects, Anthropic
+    streaming events, and Google Gemini ``GenerateContentResponse``
+    chunks via duck-typing.
     """
 
     def __init__(self) -> None:
@@ -205,8 +206,8 @@ class StreamAccumulator:
         estimated_out = max(1, self._char_count // 4)
         warnings.warn(
             "No API-provided token usage in stream; using character-based "
-            f"estimate ({estimated_out} output tokens). Pass "
-            "stream_options={'include_usage': True} for accurate counts.",
+            f"estimate ({estimated_out} output tokens). For accurate counts, "
+            "ensure your SDK provides usage data in streaming responses.",
             stacklevel=3,
         )
         return (model, 0, estimated_out)
