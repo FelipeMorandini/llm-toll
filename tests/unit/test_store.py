@@ -165,6 +165,24 @@ class TestUsageStorePersistence:
         with pytest.raises(ValueError, match="must not contain"):
             UsageStore(db_path="../../etc/passwd")
 
+    def test_context_manager_closes(self, tmp_db_path: str) -> None:
+        with UsageStore(db_path=tmp_db_path) as store:
+            store.log_usage(project="p", model="m", input_tokens=1, output_tokens=1, cost=0.01)
+            # Connection should be open inside the block
+            assert store._conn is not None
+        # After exiting the context manager, the connection should be closed
+        assert store._conn is None
+
+    def test_context_manager_persists_data(self, tmp_db_path: str) -> None:
+        with UsageStore(db_path=tmp_db_path) as store:
+            store.log_usage(project="p", model="m", input_tokens=10, output_tokens=5, cost=0.42)
+        # Data should persist after the context manager exits
+        store2 = UsageStore(db_path=tmp_db_path)
+        assert store2.get_total_cost("p") == pytest.approx(0.42)
+        logs = store2.get_usage_logs("p")
+        assert len(logs) == 1
+        store2.close()
+
     def test_close_and_reopen(self, tmp_db_path: str) -> None:
         store = UsageStore(db_path=tmp_db_path)
         store.log_usage(project="p", model="m", input_tokens=10, output_tokens=5, cost=0.99)

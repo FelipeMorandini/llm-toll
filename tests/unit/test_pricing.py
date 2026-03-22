@@ -215,6 +215,48 @@ class TestPricingRegistryBuiltins:
         assert errors == [], f"Thread safety violated: {errors}"
 
 
+class TestPricingValidation:
+    """Tests for input validation in register_model and set_fallback_pricing."""
+
+    def test_register_model_negative_input_cost_raises(self) -> None:
+        registry = PricingRegistry()
+        with pytest.raises(ValueError, match="input_cost_per_token must be non-negative"):
+            registry.register_model("test-model", -0.001, 0.002)
+
+    def test_register_model_negative_output_cost_raises(self) -> None:
+        registry = PricingRegistry()
+        with pytest.raises(ValueError, match="output_cost_per_token must be non-negative"):
+            registry.register_model("test-model", 0.001, -0.002)
+
+    def test_register_model_zero_cost_allowed(self) -> None:
+        registry = PricingRegistry()
+        registry.register_model("free-model", 0.0, 0.0)
+        cost = registry.get_cost("free-model", input_tokens=1000, output_tokens=500)
+        assert cost == 0.0
+
+    def test_set_fallback_negative_input_raises(self) -> None:
+        registry = PricingRegistry()
+        with pytest.raises(ValueError, match="input_cost_per_token must be non-negative"):
+            registry.set_fallback_pricing(-0.01, 0.02)
+
+    def test_set_fallback_negative_output_raises(self) -> None:
+        registry = PricingRegistry()
+        with pytest.raises(ValueError, match="output_cost_per_token must be non-negative"):
+            registry.set_fallback_pricing(0.01, -0.02)
+
+    def test_set_fallback_zero_allowed(self) -> None:
+        registry = PricingRegistry()
+        registry.set_fallback_pricing(0.0, 0.0)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            cost = registry.get_cost("any-unknown-model", input_tokens=100, output_tokens=50)
+        pricing_warnings = [
+            w for w in caught if issubclass(w.category, PricingMatrixOutdatedWarning)
+        ]
+        assert len(pricing_warnings) == 0
+        assert cost == 0.0
+
+
 class TestLocalOllamaPricing:
     """Tests for Local/Ollama zero-cost provider support."""
 

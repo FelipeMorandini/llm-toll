@@ -61,6 +61,14 @@ class PricingRegistry:
         output_cost_per_token: float,
     ) -> None:
         """Register or override pricing for a model."""
+        if input_cost_per_token < 0:
+            raise ValueError(
+                f"input_cost_per_token must be non-negative, got {input_cost_per_token}"
+            )
+        if output_cost_per_token < 0:
+            raise ValueError(
+                f"output_cost_per_token must be non-negative, got {output_cost_per_token}"
+            )
         with self._lock:
             self._models[model] = (input_cost_per_token, output_cost_per_token)
 
@@ -74,6 +82,14 @@ class PricingRegistry:
         Note: models already queried (and cached as unknown) will not
         retroactively use the fallback. Set fallback before first use.
         """
+        if input_cost_per_token < 0:
+            raise ValueError(
+                f"input_cost_per_token must be non-negative, got {input_cost_per_token}"
+            )
+        if output_cost_per_token < 0:
+            raise ValueError(
+                f"output_cost_per_token must be non-negative, got {output_cost_per_token}"
+            )
         with self._lock:
             self._fallback = (input_cost_per_token, output_cost_per_token)
 
