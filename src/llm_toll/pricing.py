@@ -49,8 +49,12 @@ class PricingRegistry:
     (e.g., ``"gpt-4o-2024-08-06"`` resolves to ``"gpt-4o"``).
     """
 
+    _MAX_DYNAMIC_CACHE: int = 1000
+
     def __init__(self) -> None:
         self._models: dict[str, tuple[float, float]] = _BUILTIN_PRICING.copy()
+        self._builtin_keys: frozenset[str] = frozenset(_BUILTIN_PRICING)
+        self._dynamic_count: int = 0
         self._fallback: tuple[float, float] | None = None
         self._lock = threading.Lock()
 
@@ -124,7 +128,7 @@ class PricingRegistry:
                 return input_tokens * pricing[0] + output_tokens * pricing[1]
 
             if self._fallback is not None:
-                self._models[model] = self._fallback
+                self._cache_dynamic(model, self._fallback)
                 return input_tokens * self._fallback[0] + output_tokens * self._fallback[1]
 
             # Unknown model — warn once, then cache (0, 0)
@@ -133,7 +137,7 @@ class PricingRegistry:
                 PricingMatrixOutdatedWarning,
                 stacklevel=2,
             )
-            self._models[model] = (0.0, 0.0)
+            self._cache_dynamic(model, (0.0, 0.0))
         return 0.0
 
     def has_model(self, model: str) -> bool:
@@ -145,6 +149,41 @@ class PricingRegistry:
         with self._lock:
             return sorted(self._models.keys())
 
+    def _cache_dynamic(self, model: str, pricing: tuple[float, float]) -> None:
+        """Cache a dynamically resolved entry, evicting if over limit.
+
+        Must be called while ``self._lock`` is held.
+        """
+        if model in self._models:
+            return
+        if self._dynamic_count >= self._MAX_DYNAMIC_CACHE:
+            # Evict the first dynamic entry
+            for key in list(self._models):
+                if key not in self._builtin_keys:
+                    del self._models[key]
+                    self._dynamic_count -= 1
+                    break
+        self._models[model] = pricing
+        self._dynamic_count += 1
+
+    @staticmethod
+    def _is_boundary_match(model: str, key: str) -> bool:
+        """Check that *key* matches at a word boundary in *model*.
+
+        The character after the prefix must be ``-``, ``/``, or
+        end-of-string.  Keys that already end with ``/`` or ``-``
+        are treated as namespace prefixes and always match.
+        This prevents ``"o3"`` from matching ``"o3000"``.
+        """
+        if not model.startswith(key):
+            return False
+        if len(model) == len(key):
+            return True
+        # Namespace prefixes (e.g. "ollama/") match any suffix
+        if key.endswith(("/", "-")):
+            return True
+        return model[len(key)] in ("-", "/")
+
     def _resolve_prefix(self, model: str) -> tuple[float, float] | None:
         """Find the longest registered key that is a prefix of *model*."""
         best_match: str | None = None
@@ -152,13 +191,13 @@ class PricingRegistry:
         with self._lock:
             keys = list(self._models)
         for key in keys:
-            if model.startswith(key) and len(key) > best_len:
+            if self._is_boundary_match(model, key) and len(key) > best_len:
                 best_match = key
                 best_len = len(key)
         if best_match is not None:
             with self._lock:
                 pricing = self._models[best_match]
-                self._models[model] = pricing  # cache for next lookup
+                self._cache_dynamic(model, pricing)
             return pricing
         return None
 
