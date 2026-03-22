@@ -256,6 +256,112 @@ class UsageStore:
             )
             return []
 
+    def get_all_project_summaries(self) -> list[dict[str, Any]]:
+        """Return aggregated usage stats per project.
+
+        Each dict contains ``project``, ``total_cost``,
+        ``total_input_tokens``, ``total_output_tokens``, ``call_count``,
+        and ``last_used``.  Ordered by total cost descending.
+        """
+        try:
+            with self._lock:
+                conn = self._get_conn()
+                cursor = conn.execute(
+                    "SELECT project, "
+                    "SUM(cost) AS total_cost, "
+                    "SUM(input_tokens) AS total_input_tokens, "
+                    "SUM(output_tokens) AS total_output_tokens, "
+                    "COUNT(*) AS call_count, "
+                    "MAX(created_at) AS last_used "
+                    "FROM usage_logs GROUP BY project ORDER BY total_cost DESC",
+                )
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+        except sqlite3.Error as exc:
+            warnings.warn(
+                f"Failed to read project summaries from {self._db_path}: {exc}",
+                stacklevel=2,
+            )
+            return []
+
+    def get_model_summaries(self, project: str | None = None) -> list[dict[str, Any]]:
+        """Return aggregated usage stats per model.
+
+        Optionally filtered by *project*.  Each dict contains ``model``,
+        ``total_cost``, ``total_input_tokens``, ``total_output_tokens``,
+        and ``call_count``.  Ordered by total cost descending.
+        """
+        try:
+            with self._lock:
+                conn = self._get_conn()
+                if project is not None:
+                    cursor = conn.execute(
+                        "SELECT model, "
+                        "SUM(cost) AS total_cost, "
+                        "SUM(input_tokens) AS total_input_tokens, "
+                        "SUM(output_tokens) AS total_output_tokens, "
+                        "COUNT(*) AS call_count "
+                        "FROM usage_logs WHERE project = ? "
+                        "GROUP BY model ORDER BY total_cost DESC",
+                        (project,),
+                    )
+                else:
+                    cursor = conn.execute(
+                        "SELECT model, "
+                        "SUM(cost) AS total_cost, "
+                        "SUM(input_tokens) AS total_input_tokens, "
+                        "SUM(output_tokens) AS total_output_tokens, "
+                        "COUNT(*) AS call_count "
+                        "FROM usage_logs GROUP BY model ORDER BY total_cost DESC",
+                    )
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+        except sqlite3.Error as exc:
+            warnings.warn(
+                f"Failed to read model summaries from {self._db_path}: {exc}",
+                stacklevel=2,
+            )
+            return []
+
+    def get_usage_logs_filtered(
+        self,
+        project: str | None = None,
+        model: str | None = None,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Return usage log entries with optional project/model filters.
+
+        Results are ordered by timestamp descending.
+        Returns an empty list on DB error.
+        """
+        try:
+            with self._lock:
+                conn = self._get_conn()
+                clauses: list[str] = []
+                params: list[Any] = []
+                if project is not None:
+                    clauses.append("project = ?")
+                    params.append(project)
+                if model is not None:
+                    clauses.append("model = ?")
+                    params.append(model)
+                where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+                params.append(limit)
+                cursor = conn.execute(
+                    "SELECT id, project, model, input_tokens, output_tokens, "
+                    f"cost, created_at FROM usage_logs{where} "
+                    "ORDER BY created_at DESC, id DESC LIMIT ?",
+                    params,
+                )
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+        except sqlite3.Error as exc:
+            warnings.warn(
+                f"Failed to read usage logs from {self._db_path}: {exc}",
+                stacklevel=2,
+            )
+            return []
+
     def reset_budget(self, project: str) -> None:
         """Reset the accumulated cost for a project to zero."""
         now = _utc_now_iso()

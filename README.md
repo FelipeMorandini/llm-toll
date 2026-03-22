@@ -152,6 +152,26 @@ except LocalRateLimitError as e:
     print(f"Rate limit hit: {e}")
 ```
 
+## CLI Dashboard
+
+View costs and usage from the terminal:
+
+```bash
+# Show cost summary across all projects
+llm-toll --stats
+
+# Filter by project or model
+llm-toll --stats --project my_scraper
+llm-toll --stats --model gpt-4o
+
+# Reset a project's budget counter
+llm-toll --reset --project my_scraper
+
+# Export usage logs to CSV
+llm-toll --export csv > usage.csv
+llm-toll --export csv --project my_scraper --output report.csv
+```
+
 ## Development
 
 ```bash
