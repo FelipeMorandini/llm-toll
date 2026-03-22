@@ -43,6 +43,9 @@ Homepage = "https://github.com/felipemorandini/llm-toll"
 Repository = "https://github.com/felipemorandini/llm-toll"
 Issues = "https://github.com/felipemorandini/llm-toll/issues"
 
+[project.scripts]
+llm-toll = "llm_toll.cli:main"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/llm_toll"]
 
