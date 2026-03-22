@@ -59,6 +59,15 @@ class RateLimiter:
         Raises :class:`LocalRateLimitError` if the RPM or TPM limit
         would be breached.  Does **not** record the request — call
         :meth:`record` after a successful API call.
+
+        .. note::
+
+           ``check()`` and ``record()`` each acquire the lock
+           independently.  Under concurrent use, multiple threads may
+           pass ``check()`` before any of them calls ``record()``,
+           slightly exceeding the configured limit.  This is an
+           accepted trade-off: the alternative (holding the lock across
+           the API call) would serialize all LLM requests.
         """
         if self._rpm is None and self._tpm is None:
             return

@@ -36,5 +36,5 @@ jobs:
       - name: Type check
         run: uv run mypy src/llm_toll
 
-      - name: Test
-        run: uv run pytest --tb=short
+      - name: Test with coverage
+        run: uv run pytest --tb=short --cov=llm_toll --cov-fail-under=85

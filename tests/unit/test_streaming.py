@@ -633,6 +633,41 @@ class TestWrapSyncStream:
         assert logs[0]["model"] == "custom-model"
         store.close()
 
+    def test_mid_stream_exception_logs_partial_usage(self, tmp_db_path: str) -> None:
+        """If the underlying iterator raises mid-stream, partial cost is logged."""
+        store, registry, reporter = self._make_deps(tmp_db_path)
+        usage = _MockChunkUsage(prompt_tokens=100, completion_tokens=50)
+        good_chunks = _make_openai_chunks("gpt-4o", ["Hello", " world"], usage)
+
+        def _failing_iter():
+            yield good_chunks[0]
+            yield good_chunks[1]
+            raise RuntimeError("connection lost")
+
+        wrapped = wrap_sync_stream(
+            _failing_iter(),
+            project="proj",
+            model_override=None,
+            max_budget=None,
+            store=store,
+            registry=registry,
+            reporter=reporter,
+        )
+
+        collected = []
+        with pytest.raises(RuntimeError, match="connection lost"):
+            for chunk in wrapped:
+                collected.append(chunk)
+
+        assert len(collected) == 2
+        # Partial usage: no final chunk with API usage, so falls back to estimation
+        total = store.get_total_cost("proj")
+        # Estimation from "Hello world" (11 chars // 4 = 2 tokens) at gpt-4o output rate
+        assert total >= 0.0
+        logs = store.get_usage_logs("proj")
+        assert len(logs) == 1
+        store.close()
+
 
 # ===========================================================================
 # TestDecoratorWithStreaming
