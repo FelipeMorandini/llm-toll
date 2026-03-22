@@ -17,6 +17,7 @@ def test_full_public_api_importable() -> None:
     expected_names = [
         "BudgetExceededError",
         "CostReporter",
+        "LiteLLMCallback",
         "LocalRateLimitError",
         "PricingMatrixOutdatedWarning",
         "PricingRegistry",

@@ -9,6 +9,7 @@ from llm_toll.exceptions import (
     LocalRateLimitError,
     PricingMatrixOutdatedWarning,
 )
+from llm_toll.integrations.litellm import LiteLLMCallback
 from llm_toll.pricing import PricingRegistry, default_registry
 from llm_toll.rate_limiter import RateLimiter
 from llm_toll.reporter import CostReporter
@@ -22,6 +23,7 @@ except PackageNotFoundError:
 __all__ = [
     "BudgetExceededError",
     "CostReporter",
+    "LiteLLMCallback",
     "LocalRateLimitError",
     "PricingMatrixOutdatedWarning",
     "PricingRegistry",

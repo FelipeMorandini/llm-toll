@@ -250,6 +250,24 @@ class TestAutoDetectIntegration:
         assert result == ("gemini-1.5-pro", 300, 120)
 
 
+class TestLiteLLMParserCompat:
+    """Verify that LiteLLM responses (OpenAI-shaped) are parsed correctly."""
+
+    def test_litellm_response_parsed_by_openai_parser(self) -> None:
+        """LiteLLM returns OpenAI-shaped objects with provider-prefixed model names."""
+        usage = _MockUsageOpenAI(prompt_tokens=150, completion_tokens=75)
+        resp = _MockOpenAIResponse(model="openai/gpt-4o", usage=usage)
+        result = parse_openai_response(resp)
+        assert result == ("openai/gpt-4o", 150, 75)
+
+    def test_litellm_response_auto_detected(self) -> None:
+        """auto_detect_usage should pick up a LiteLLM (OpenAI-shaped) response."""
+        usage = _MockUsageOpenAI(prompt_tokens=200, completion_tokens=100)
+        resp = _MockOpenAIResponse(model="openai/gpt-4o", usage=usage)
+        result = auto_detect_usage(resp)
+        assert result == ("openai/gpt-4o", 200, 100)
+
+
 class TestGeminiParser:
     """Tests for the Gemini SDK response parser."""
 

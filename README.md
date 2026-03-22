@@ -139,6 +139,22 @@ def local_inference(prompt):
 
 > **Tip:** Ollama's API is OpenAI-compatible, so if you use the `openai` client pointed at `localhost:11434`, auto-parsing works automatically.
 
+## LiteLLM Integration
+
+Track costs automatically across all LiteLLM calls — no decorator needed:
+
+```python
+import litellm
+from llm_toll import LiteLLMCallback
+
+litellm.callbacks = [LiteLLMCallback(project="my-app", max_budget=10.0)]
+
+# All litellm completions are now tracked automatically
+response = litellm.completion(model="gpt-4o", messages=[{"role": "user", "content": "Hi"}])
+```
+
+The callback also works with the `@track_costs` decorator — use whichever approach fits your codebase.
+
 ## Error Handling
 
 ```python
