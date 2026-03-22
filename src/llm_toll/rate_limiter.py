@@ -87,8 +87,15 @@ class RateLimiter:
             if self._tpm is not None:
                 total_tokens = sum(t for _, t in self._token_log)
                 if total_tokens >= self._tpm:
-                    # Find how long until enough tokens expire
+                    # Walk from oldest, find when enough tokens will expire
+                    need_to_free = total_tokens - self._tpm + 1
+                    freed = 0
                     retry_after = self._token_log[0][0] + _WINDOW - now
+                    for ts, tok in self._token_log:
+                        freed += tok
+                        retry_after = ts + _WINDOW - now
+                        if freed >= need_to_free:
+                            break
                     raise LocalRateLimitError(
                         limit_type="tpm",
                         limit_value=self._tpm,

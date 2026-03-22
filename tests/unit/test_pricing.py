@@ -290,3 +290,50 @@ class TestLocalOllamaPricing:
         assert registry.has_model("ollama/llama3") is False
         registry.get_cost("ollama/llama3", input_tokens=100, output_tokens=50)
         assert registry.has_model("ollama/llama3") is True
+
+
+class TestBoundaryPrefixMatching:
+    """Tests for boundary-aware prefix matching via _is_boundary_match."""
+
+    def test_o3_does_not_match_o3000(self) -> None:
+        """'o3' should NOT match 'o3000' — no boundary after 'o3'."""
+        registry = PricingRegistry()
+        with pytest.warns(PricingMatrixOutdatedWarning):
+            cost = registry.get_cost("o3000", input_tokens=100, output_tokens=50)
+        assert cost == 0.0
+
+    def test_gpt4o_matches_gpt4o_dated(self) -> None:
+        """'gpt-4o-2024-08-06' should match 'gpt-4o' (hyphen boundary)."""
+        registry = PricingRegistry()
+        base_cost = registry.get_cost("gpt-4o", input_tokens=100, output_tokens=50)
+        versioned_cost = registry.get_cost("gpt-4o-2024-08-06", input_tokens=100, output_tokens=50)
+        assert versioned_cost == approx(base_cost)
+        assert versioned_cost > 0.0
+
+    def test_ollama_prefix_still_works(self) -> None:
+        """'ollama/llama3' should match 'ollama/' (slash-terminated prefix)."""
+        registry = PricingRegistry()
+        cost = registry.get_cost("ollama/llama3", input_tokens=100, output_tokens=50)
+        assert cost == 0.0
+
+
+class TestBoundedCache:
+    """Tests for bounded dynamic cache in PricingRegistry."""
+
+    def test_cache_does_not_grow_unbounded(self) -> None:
+        """Querying many unknown models should not let _models grow without bound."""
+        registry = PricingRegistry()
+        builtin_count = len(registry._models)
+
+        # Query 1100 unique unknown model names
+        for i in range(1100):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", PricingMatrixOutdatedWarning)
+                registry.get_cost(f"unknown-model-{i}", input_tokens=1, output_tokens=1)
+
+        # _models should be bounded: builtins + at most _MAX_DYNAMIC_CACHE entries + small margin
+        max_allowed = builtin_count + PricingRegistry._MAX_DYNAMIC_CACHE + 10
+        assert len(registry._models) <= max_allowed, (
+            f"Cache grew to {len(registry._models)} entries, "
+            f"expected at most {max_allowed} (builtin={builtin_count})"
+        )

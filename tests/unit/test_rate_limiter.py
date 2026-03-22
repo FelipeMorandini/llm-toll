@@ -194,6 +194,69 @@ class TestTPMEnforcement:
         clock_time[0] = 60.1
         limiter.check()  # should not raise
 
+    def test_tpm_retry_after_accounts_for_token_distribution(self) -> None:
+        """retry_after should point to when *enough* tokens expire, not just the oldest."""
+        clock_time, mock_clock = _make_clock(0.0)
+        limiter = RateLimiter(tpm=100, _clock=mock_clock)
+
+        # Record 10 tokens at t=0
+        limiter.record(tokens=10)
+        # Record 90 tokens at t=1
+        clock_time[0] = 1.0
+        limiter.record(tokens=90)
+
+        # At t=2 total is 100 (>= limit) — should raise
+        clock_time[0] = 2.0
+        with pytest.raises(LocalRateLimitError) as exc_info:
+            limiter.check()
+
+        assert exc_info.value.limit_type == "tpm"
+        # We need to free at least 1 token (total=100, limit=100, need_to_free=1).
+        # The 10-token batch at t=0 frees first, which is enough.
+        # So retry_after should point to t=0 + 60 = 60, i.e. 60 - 2 = 58.
+        assert exc_info.value.retry_after == pytest.approx(58.0, abs=0.1)
+
+        # Now test a scenario where we need more tokens freed than the oldest batch
+        clock_time2, mock_clock2 = _make_clock(0.0)
+        limiter2 = RateLimiter(tpm=100, _clock=mock_clock2)
+
+        # Record 10 tokens at t=0, 10 at t=5, 80 at t=10
+        limiter2.record(tokens=10)
+        clock_time2[0] = 5.0
+        limiter2.record(tokens=10)
+        clock_time2[0] = 10.0
+        limiter2.record(tokens=80)
+
+        # At t=11 total is 100 (>= limit)
+        clock_time2[0] = 11.0
+        with pytest.raises(LocalRateLimitError) as exc_info2:
+            limiter2.check()
+
+        # need_to_free = 100 - 100 + 1 = 1
+        # First batch (10 tokens at t=0) is enough -> retry_after = 0 + 60 - 11 = 49
+        assert exc_info2.value.retry_after == pytest.approx(49.0, abs=0.1)
+
+        # Now make the first batch small and require the second batch too
+        clock_time3, mock_clock3 = _make_clock(0.0)
+        limiter3 = RateLimiter(tpm=100, _clock=mock_clock3)
+
+        # Record 5 tokens at t=0, 90 tokens at t=30
+        limiter3.record(tokens=5)
+        clock_time3[0] = 30.0
+        limiter3.record(tokens=90)
+        # Add 10 more at t=31 to exceed limit (total=105)
+        clock_time3[0] = 31.0
+        limiter3.record(tokens=10)
+
+        # At t=32 total is 105, need_to_free = 105 - 100 + 1 = 6
+        clock_time3[0] = 32.0
+        with pytest.raises(LocalRateLimitError) as exc_info3:
+            limiter3.check()
+
+        # 5 tokens at t=0 not enough (freed=5 < 6), need 90 tokens at t=30 too
+        # retry_after = 30 + 60 - 32 = 58
+        assert exc_info3.value.retry_after == pytest.approx(58.0, abs=0.1)
+
     def test_tpm_none_disables(self) -> None:
         clock_time, mock_clock = _make_clock()
         limiter = RateLimiter(rpm=1000, tpm=None, _clock=mock_clock)
