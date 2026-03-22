@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-toll"
-version = "0.8.0"
+version = "0.9.0"
 description = "Lightweight drop-in Python decorator to track costs, monitor token usage, and enforce budget/rate limits for LLM API calls"
 readme = "README.md"
 license = { text = "MIT" }
