@@ -422,7 +422,12 @@ class UsageStore:
     def __enter__(self) -> UsageStore:
         return self
 
-    def __exit__(self, *_: object) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         self.close()
 
 

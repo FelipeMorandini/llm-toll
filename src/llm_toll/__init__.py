@@ -15,8 +15,7 @@ from llm_toll.reporter import CostReporter
 from llm_toll.store import UsageStore
 
 try:
-    _v = _pkg_version("llm-toll")
-    __version__: str = _v if isinstance(_v, str) else "0.0.0"
+    __version__: str = _pkg_version("llm-toll")
 except PackageNotFoundError:
     __version__ = "0.0.0"
 
