@@ -53,7 +53,7 @@ class PricingRegistry:
 
     def __init__(self) -> None:
         self._models: dict[str, tuple[float, float]] = _BUILTIN_PRICING.copy()
-        self._builtin_keys: frozenset[str] = frozenset(_BUILTIN_PRICING)
+        self._protected_keys: set[str] = set(_BUILTIN_PRICING)
         self._dynamic_count: int = 0
         self._fallback: tuple[float, float] | None = None
         self._lock = threading.Lock()
@@ -75,6 +75,7 @@ class PricingRegistry:
             )
         with self._lock:
             self._models[model] = (input_cost_per_token, output_cost_per_token)
+            self._protected_keys.add(model)
 
     def set_fallback_pricing(
         self,
@@ -159,7 +160,7 @@ class PricingRegistry:
         if self._dynamic_count >= self._MAX_DYNAMIC_CACHE:
             # Evict the first dynamic entry
             for key in list(self._models):
-                if key not in self._builtin_keys:
+                if key not in self._protected_keys:
                     del self._models[key]
                     self._dynamic_count -= 1
                     break
@@ -196,9 +197,10 @@ class PricingRegistry:
                 best_len = len(key)
         if best_match is not None:
             with self._lock:
-                pricing = self._models[best_match]
-                self._cache_dynamic(model, pricing)
-            return pricing
+                pricing = self._models.get(best_match)
+                if pricing is not None:
+                    self._cache_dynamic(model, pricing)
+                    return pricing
         return None
 
 
