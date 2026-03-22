@@ -6,7 +6,7 @@ from __future__ import annotations
 def test_package_version() -> None:
     from llm_toll import __version__
 
-    assert __version__ == "0.5.0"
+    assert __version__ == "0.6.0"
 
 
 def test_public_api_exports() -> None:

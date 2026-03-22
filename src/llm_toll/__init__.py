@@ -11,7 +11,7 @@ from llm_toll.rate_limiter import RateLimiter
 from llm_toll.reporter import CostReporter
 from llm_toll.store import UsageStore
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 __all__ = [
     "BudgetExceededError",
