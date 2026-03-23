@@ -38,9 +38,13 @@ _BUILTIN_PRICING: dict[str, tuple[float, float]] = {
 }
 
 
+COST_ROUND_PLACES: int = 10
+"""Number of decimal places to round costs to, preventing floating-point drift."""
+
+
 def _calc(input_tokens: int, output_tokens: int, pricing: tuple[float, float]) -> float:
-    """Compute cost and round to 10 decimal places to prevent drift."""
-    return round(input_tokens * pricing[0] + output_tokens * pricing[1], 10)
+    """Compute cost and round to :data:`COST_ROUND_PLACES` decimal places."""
+    return round(input_tokens * pricing[0] + output_tokens * pricing[1], COST_ROUND_PLACES)
 
 
 class PricingRegistry:

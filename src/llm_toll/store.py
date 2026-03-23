@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from llm_toll.exceptions import BudgetExceededError
+from llm_toll.pricing import COST_ROUND_PLACES
 
 
 class BaseStore(ABC):
@@ -266,7 +267,7 @@ class SQLiteStore(BaseStore):
                             max_budget=max_budget,
                         )
 
-                    new_total = round(current_cost + cost, 10)
+                    new_total = round(current_cost + cost, COST_ROUND_PLACES)
                     if new_total > max_budget:
                         raise BudgetExceededError(
                             project=project,

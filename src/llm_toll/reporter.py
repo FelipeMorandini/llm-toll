@@ -7,6 +7,8 @@ import sys
 import threading
 from typing import IO
 
+from llm_toll.pricing import COST_ROUND_PLACES
+
 # ANSI color codes
 _CYAN = "36"
 _GREEN = "32"
@@ -49,7 +51,7 @@ class CostReporter:
     ) -> None:
         """Print a per-call cost summary and update session accumulators."""
         with self._lock:
-            self._session_cost = round(self._session_cost + cost, 10)
+            self._session_cost = round(self._session_cost + cost, COST_ROUND_PLACES)
             self._session_input_tokens += input_tokens
             self._session_output_tokens += output_tokens
             self._call_count += 1

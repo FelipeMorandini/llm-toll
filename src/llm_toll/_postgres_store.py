@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from llm_toll.exceptions import BudgetExceededError
+from llm_toll.pricing import COST_ROUND_PLACES
 from llm_toll.store import BaseStore, _utc_now_iso
 
 
@@ -144,7 +145,7 @@ class PostgresStore(BaseStore):
                         max_budget=max_budget,
                     )
 
-                new_total = round(current_cost + cost, 10)
+                new_total = round(current_cost + cost, COST_ROUND_PLACES)
                 if new_total > max_budget:
                     raise BudgetExceededError(
                         project=project,
