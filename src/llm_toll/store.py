@@ -266,7 +266,7 @@ class SQLiteStore(BaseStore):
                             max_budget=max_budget,
                         )
 
-                    new_total = current_cost + cost
+                    new_total = round(current_cost + cost, 10)
                     if new_total > max_budget:
                         raise BudgetExceededError(
                             project=project,

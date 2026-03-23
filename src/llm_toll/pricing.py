@@ -38,6 +38,11 @@ _BUILTIN_PRICING: dict[str, tuple[float, float]] = {
 }
 
 
+def _calc(input_tokens: int, output_tokens: int, pricing: tuple[float, float]) -> float:
+    """Compute cost and round to 10 decimal places to prevent drift."""
+    return round(input_tokens * pricing[0] + output_tokens * pricing[1], 10)
+
+
 class PricingRegistry:
     """In-memory store of per-model cost-per-token pricing.
 
@@ -114,23 +119,23 @@ class PricingRegistry:
         """
         pricing = self._models.get(model)
         if pricing is not None:
-            return input_tokens * pricing[0] + output_tokens * pricing[1]
+            return _calc(input_tokens, output_tokens, pricing)
 
         # Try prefix match — find the longest registered key that is a prefix of model
         pricing = self._resolve_prefix(model)
         if pricing is not None:
-            return input_tokens * pricing[0] + output_tokens * pricing[1]
+            return _calc(input_tokens, output_tokens, pricing)
 
         # Fallback or unknown — guard with lock for atomic check-and-cache
         with self._lock:
             # Re-check under lock (another thread may have resolved it)
             pricing = self._models.get(model)
             if pricing is not None:
-                return input_tokens * pricing[0] + output_tokens * pricing[1]
+                return _calc(input_tokens, output_tokens, pricing)
 
             if self._fallback is not None:
                 self._cache_dynamic(model, self._fallback)
-                return input_tokens * self._fallback[0] + output_tokens * self._fallback[1]
+                return _calc(input_tokens, output_tokens, self._fallback)
 
             # Unknown model — warn once, then cache (0, 0)
             warnings.warn(

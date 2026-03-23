@@ -337,3 +337,23 @@ class TestBoundedCache:
             f"Cache grew to {len(registry._models)} entries, "
             f"expected at most {max_allowed} (builtin={builtin_count})"
         )
+
+
+class TestCostRounding:
+    """Tests that cost calculation rounds to prevent floating-point drift."""
+
+    def test_get_cost_is_rounded(self) -> None:
+        """Cost should be cleanly rounded, not have floating-point noise."""
+        registry = PricingRegistry()
+        # gpt-4o: input=2.5e-06, output=10.0e-06
+        # 1000 * 2.5e-06 + 500 * 10.0e-06 = 0.0025 + 0.005 = 0.0075
+        cost = registry.get_cost("gpt-4o", 1000, 500)
+        assert cost == 0.0075  # exact, no floating-point noise
+
+    def test_no_drift_after_many_accumulations(self) -> None:
+        """Summing many rounded costs should not drift."""
+        registry = PricingRegistry()
+        single = registry.get_cost("gpt-4o", 100, 50)
+        total = sum(registry.get_cost("gpt-4o", 100, 50) for _ in range(10000))
+        expected = round(single * 10000, 10)
+        assert total == pytest.approx(expected, abs=1e-9)

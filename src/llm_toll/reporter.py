@@ -49,7 +49,7 @@ class CostReporter:
     ) -> None:
         """Print a per-call cost summary and update session accumulators."""
         with self._lock:
-            self._session_cost += cost
+            self._session_cost = round(self._session_cost + cost, 10)
             self._session_input_tokens += input_tokens
             self._session_output_tokens += output_tokens
             self._call_count += 1
