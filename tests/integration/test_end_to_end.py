@@ -15,6 +15,7 @@ def test_full_public_api_importable() -> None:
     import llm_toll
 
     expected_names = [
+        "BaseStore",
         "BudgetExceededError",
         "CostReporter",
         "LangChainCallback",
@@ -23,8 +24,10 @@ def test_full_public_api_importable() -> None:
         "PricingMatrixOutdatedWarning",
         "PricingRegistry",
         "RateLimiter",
+        "SQLiteStore",
         "UsageStore",
         "__version__",
+        "create_store",
         "default_registry",
         "set_reporter",
         "set_store",

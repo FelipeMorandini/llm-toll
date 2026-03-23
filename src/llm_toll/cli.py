@@ -8,7 +8,7 @@ import os
 import sys
 
 from llm_toll import __version__
-from llm_toll.store import UsageStore
+from llm_toll.store import BaseStore, UsageStore, create_store
 
 # ANSI color codes
 _GREEN = "\033[32m"
@@ -83,7 +83,7 @@ def _print_table(
         print(_fmt_row(row))
 
 
-def _cmd_stats(store: UsageStore, args: argparse.Namespace) -> None:
+def _cmd_stats(store: BaseStore, args: argparse.Namespace) -> None:
     """Handle --stats command."""
     if args.model:
         # Per-project breakdown for a specific model (SQL aggregation)
@@ -195,7 +195,7 @@ def _cmd_stats(store: UsageStore, args: argparse.Namespace) -> None:
     _print_table(headers, rows, ["<", ">", ">", ">", ">"])
 
 
-def _cmd_reset(store: UsageStore, args: argparse.Namespace) -> None:
+def _cmd_reset(store: BaseStore, args: argparse.Namespace) -> None:
     """Handle --reset command."""
     if not args.project:
         print("Error: --reset requires --project", file=sys.stderr)
@@ -210,7 +210,7 @@ def _cmd_reset(store: UsageStore, args: argparse.Namespace) -> None:
     print(f"Budget reset for project '{args.project}' (was ${current:,.4f}).")
 
 
-def _cmd_export(store: UsageStore, args: argparse.Namespace) -> None:
+def _cmd_export(store: BaseStore, args: argparse.Namespace) -> None:
     """Handle --export csv command."""
     logs = store.get_usage_logs_filtered(project=args.project, model=args.model, limit=0)
     if not logs:
@@ -247,6 +247,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"llm-toll {__version__}")
     parser.add_argument("--db", metavar="PATH", help="Path to the SQLite database")
+    parser.add_argument(
+        "--store-url",
+        metavar="URL",
+        help="Store URL (e.g. postgresql://user:pass@host/db)",
+    )
     parser.add_argument("--project", metavar="NAME", help="Filter by project name")
     parser.add_argument("--model", metavar="NAME", help="Filter by model name")
 
@@ -295,7 +300,7 @@ def main() -> None:
         _cmd_update_pricing()
         return
 
-    store = UsageStore(db_path=args.db)
+    store = create_store(url=args.store_url) if args.store_url else UsageStore(db_path=args.db)
     try:
         if args.stats:
             _cmd_stats(store, args)

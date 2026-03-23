@@ -12,7 +12,7 @@ from llm_toll.exceptions import BudgetExceededError
 from llm_toll.pricing import PricingRegistry
 from llm_toll.rate_limiter import RateLimiter
 from llm_toll.reporter import CostReporter
-from llm_toll.store import UsageStore
+from llm_toll.store import BaseStore
 
 
 def estimate_tokens(text: str) -> int:
@@ -219,7 +219,7 @@ def _finalize_stream(
     project: str,
     model_override: str | None,
     max_budget: float | None,
-    store: UsageStore,
+    store: BaseStore,
     registry: PricingRegistry,
     reporter: CostReporter,
     rate_limiter: RateLimiter | None = None,
@@ -277,7 +277,7 @@ def wrap_sync_stream(
     project: str,
     model_override: str | None,
     max_budget: float | None,
-    store: UsageStore,
+    store: BaseStore,
     registry: PricingRegistry,
     reporter: CostReporter,
     rate_limiter: RateLimiter | None = None,

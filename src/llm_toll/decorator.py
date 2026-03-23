@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import functools
 import inspect
+import os
 import threading
 import warnings
 from collections.abc import Callable
@@ -17,27 +18,28 @@ from llm_toll.parsers import auto_detect_usage
 from llm_toll.pricing import default_registry
 from llm_toll.rate_limiter import RateLimiter
 from llm_toll.reporter import CostReporter
-from llm_toll.store import UsageStore
+from llm_toll.store import BaseStore, create_store
 from llm_toll.streaming import _is_sync_stream, wrap_sync_stream
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-_default_store: UsageStore | None = None
+_default_store: BaseStore | None = None
 _store_lock = threading.Lock()
 
 _default_reporter: CostReporter | None = None
 _reporter_lock = threading.Lock()
 
 
-def _get_store() -> UsageStore:
-    """Return the shared module-level UsageStore (lazily created)."""
+def _get_store() -> BaseStore:
+    """Return the shared module-level store (lazily created)."""
     global _default_store
     if _default_store is not None:
         return _default_store
     with _store_lock:
         if _default_store is not None:
             return _default_store
-        _default_store = UsageStore()
+        url = os.environ.get("LLM_TOLL_STORE_URL")
+        _default_store = create_store(url=url)
         return _default_store
 
 
@@ -63,8 +65,8 @@ def set_reporter(reporter: CostReporter | None) -> None:
         _default_reporter = reporter
 
 
-def set_store(store: UsageStore | None) -> None:
-    """Inject a custom UsageStore for the decorator to use.
+def set_store(store: BaseStore | None) -> None:
+    """Inject a custom store for the decorator to use.
 
     Pass ``None`` to reset to the default (lazily created) store.
     Useful for testing or directing storage to a custom database path.

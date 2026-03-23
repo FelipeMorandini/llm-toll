@@ -36,7 +36,8 @@ dev = [
 openai = ["openai>=1.0"]
 anthropic = ["anthropic>=0.25"]
 gemini = ["google-genai>=1.0"]
-all = ["openai>=1.0", "anthropic>=0.25", "google-genai>=1.0"]
+postgres = ["psycopg2-binary>=2.9"]
+all = ["openai>=1.0", "anthropic>=0.25", "google-genai>=1.0", "psycopg2-binary>=2.9"]
 
 [project.urls]
 Homepage = "https://github.com/felipemorandini/llm-toll"
@@ -73,3 +74,6 @@ mypy_path = "src"
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-ra -q"
+
+[tool.coverage.run]
+omit = ["src/llm_toll/_postgres_store.py"]
