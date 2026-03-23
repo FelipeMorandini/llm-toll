@@ -90,7 +90,8 @@ def update_pricing(
     """Fetch latest model pricing and apply it to the registry.
 
     Returns ``True`` if pricing was updated (from cache or remote),
-    ``False`` on network failure (built-in pricing is retained).
+    ``False`` on failure (network error or malformed data; built-in
+    pricing is retained).
 
     Parameters
     ----------
