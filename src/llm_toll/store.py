@@ -8,7 +8,7 @@ import stat
 import threading
 import warnings
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +76,16 @@ class BaseStore(ABC):
         limit: int = 1000,
     ) -> list[dict[str, Any]]:
         """Return usage log entries with optional project/model filters."""
+
+    @abstractmethod
+    def get_daily_cost_trends(self, days: int = 30) -> list[dict[str, Any]]:
+        """Return daily aggregated cost and token data for recent days."""
+        ...
+
+    @abstractmethod
+    def get_budget_utilization(self) -> list[dict[str, Any]]:
+        """Return budget utilization for all projects."""
+        ...
 
     @abstractmethod
     def reset_budget(self, project: str) -> None:
@@ -472,6 +482,49 @@ class SQLiteStore(BaseStore):
         except sqlite3.Error as exc:
             warnings.warn(
                 f"Failed to read usage logs from {self._db_path}: {exc}",
+                stacklevel=2,
+            )
+            return []
+
+    def get_daily_cost_trends(self, days: int = 30) -> list[dict[str, Any]]:
+        """Return daily aggregated cost and token data for recent days."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        try:
+            with self._lock:
+                conn = self._get_conn()
+                cursor = conn.execute(
+                    "SELECT DATE(created_at) AS date, "
+                    "SUM(cost) AS daily_cost, "
+                    "SUM(input_tokens) AS daily_input_tokens, "
+                    "SUM(output_tokens) AS daily_output_tokens, "
+                    "COUNT(*) AS call_count "
+                    "FROM usage_logs WHERE created_at >= ? "
+                    "GROUP BY DATE(created_at) ORDER BY date",
+                    (cutoff,),
+                )
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+        except sqlite3.Error as exc:
+            warnings.warn(
+                f"Failed to read daily cost trends from {self._db_path}: {exc}",
+                stacklevel=2,
+            )
+            return []
+
+    def get_budget_utilization(self) -> list[dict[str, Any]]:
+        """Return budget utilization for all projects."""
+        try:
+            with self._lock:
+                conn = self._get_conn()
+                cursor = conn.execute(
+                    "SELECT project, total_cost, last_reset_at, updated_at "
+                    "FROM budgets ORDER BY total_cost DESC",
+                )
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+        except sqlite3.Error as exc:
+            warnings.warn(
+                f"Failed to read budget utilization from {self._db_path}: {exc}",
                 stacklevel=2,
             )
             return []
