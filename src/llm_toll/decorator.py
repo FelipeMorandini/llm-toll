@@ -39,7 +39,15 @@ def _get_store() -> BaseStore:
         if _default_store is not None:
             return _default_store
         url = os.environ.get("LLM_TOLL_STORE_URL")
-        _default_store = create_store(url=url)
+        try:
+            _default_store = create_store(url=url)
+        except Exception as exc:
+            warnings.warn(
+                f"Failed to create store from LLM_TOLL_STORE_URL={url!r}: {exc}. "
+                "Falling back to local SQLite.",
+                stacklevel=2,
+            )
+            _default_store = create_store(url=None)
         return _default_store
 
 

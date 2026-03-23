@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import warnings
 from typing import Any
 
@@ -176,6 +177,15 @@ class PostgresStore(BaseStore):
         finally:
             self._pool.putconn(conn)
 
+    def _putconn_readonly(self, conn: Any) -> None:
+        """Return a connection used for read-only queries to the pool.
+
+        Rolls back the implicit transaction so the connection is clean.
+        """
+        with contextlib.suppress(Exception):
+            conn.rollback()
+        self._pool.putconn(conn)
+
     def get_total_cost(self, project: str) -> float:
         """Get the total accumulated cost for a project."""
         conn = self._pool.getconn()
@@ -196,7 +206,7 @@ class PostgresStore(BaseStore):
             )
             return 0.0
         finally:
-            self._pool.putconn(conn)
+            self._putconn_readonly(conn)
 
     def get_usage_logs(
         self,
@@ -225,7 +235,7 @@ class PostgresStore(BaseStore):
             )
             return []
         finally:
-            self._pool.putconn(conn)
+            self._putconn_readonly(conn)
 
     def get_all_project_summaries(self) -> list[dict[str, Any]]:
         """Return aggregated usage stats per project."""
@@ -252,7 +262,7 @@ class PostgresStore(BaseStore):
             )
             return []
         finally:
-            self._pool.putconn(conn)
+            self._putconn_readonly(conn)
 
     def get_model_summaries(self, project: str | None = None) -> list[dict[str, Any]]:
         """Return aggregated usage stats per model."""
@@ -290,7 +300,7 @@ class PostgresStore(BaseStore):
             )
             return []
         finally:
-            self._pool.putconn(conn)
+            self._putconn_readonly(conn)
 
     def get_project_summaries_for_model(self, model: str) -> list[dict[str, Any]]:
         """Return aggregated usage stats per project for a specific model."""
@@ -318,7 +328,7 @@ class PostgresStore(BaseStore):
             )
             return []
         finally:
-            self._pool.putconn(conn)
+            self._putconn_readonly(conn)
 
     def get_usage_logs_filtered(
         self,
@@ -360,7 +370,7 @@ class PostgresStore(BaseStore):
             )
             return []
         finally:
-            self._pool.putconn(conn)
+            self._putconn_readonly(conn)
 
     def reset_budget(self, project: str) -> None:
         """Reset the accumulated cost for a project to zero."""
