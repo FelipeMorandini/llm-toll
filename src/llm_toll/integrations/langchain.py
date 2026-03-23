@@ -90,8 +90,12 @@ class LangChainCallback:
         if not isinstance(llm_output, dict):
             return
 
-        token_usage = llm_output.get("token_usage") or {}
-        model = llm_output.get("model_name") or "unknown"
+        token_usage = llm_output.get("token_usage")
+        if not isinstance(token_usage, dict):
+            token_usage = {}
+        model = llm_output.get("model_name")
+        if not isinstance(model, str) or not model:
+            model = "unknown"
 
         input_tokens = token_usage.get("prompt_tokens", 0) or 0
         output_tokens = token_usage.get("completion_tokens", 0) or 0
