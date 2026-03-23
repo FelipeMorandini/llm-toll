@@ -155,6 +155,20 @@ response = litellm.completion(model="gpt-4o", messages=[{"role": "user", "conten
 
 The callback also works with the `@track_costs` decorator — use whichever approach fits your codebase.
 
+## LangChain Integration
+
+Track costs across all LLM calls in a LangChain chain or agent:
+
+```python
+from langchain_openai import ChatOpenAI
+from llm_toll import LangChainCallback
+
+handler = LangChainCallback(project="my-chain", max_budget=10.0)
+llm = ChatOpenAI(model="gpt-4o", callbacks=[handler])
+```
+
+Budget is checked *before* each LLM call (`on_llm_start`), and usage is logged *after* (`on_llm_end`).
+
 ## Error Handling
 
 ```python
