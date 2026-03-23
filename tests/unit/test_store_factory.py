@@ -119,6 +119,12 @@ class TestBaseStoreContextManager:
             def get_usage_logs_filtered(self, *a, **kw) -> list:
                 return []
 
+            def get_daily_cost_trends(self, *a, **kw) -> list:
+                return []
+
+            def get_budget_utilization(self) -> list:
+                return []
+
             def reset_budget(self, project: str) -> None: ...
             def close(self) -> None:
                 mock_close()

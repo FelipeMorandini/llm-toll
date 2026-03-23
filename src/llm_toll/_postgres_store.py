@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import warnings
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from llm_toll.exceptions import BudgetExceededError
@@ -366,6 +367,57 @@ class PostgresStore(BaseStore):
         except Exception as exc:
             warnings.warn(
                 f"Failed to read usage logs from PostgreSQL: {exc}",
+                stacklevel=2,
+            )
+            return []
+        finally:
+            self._putconn_readonly(conn)
+
+    def get_daily_cost_trends(self, days: int = 30) -> list[dict[str, Any]]:
+        """Return daily aggregated cost and token data for recent days."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        conn = self._pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT DATE(created_at) AS date, "
+                    "SUM(cost) AS daily_cost, "
+                    "SUM(input_tokens) AS daily_input_tokens, "
+                    "SUM(output_tokens) AS daily_output_tokens, "
+                    "COUNT(*) AS call_count "
+                    "FROM usage_logs WHERE created_at >= %s "
+                    "GROUP BY DATE(created_at) ORDER BY date",
+                    (cutoff,),
+                )
+                if cur.description is None:
+                    return []
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+        except Exception as exc:
+            warnings.warn(
+                f"Failed to read daily cost trends from PostgreSQL: {exc}",
+                stacklevel=2,
+            )
+            return []
+        finally:
+            self._putconn_readonly(conn)
+
+    def get_budget_utilization(self) -> list[dict[str, Any]]:
+        """Return budget utilization for all projects."""
+        conn = self._pool.getconn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT project, total_cost, last_reset_at, updated_at "
+                    "FROM budgets ORDER BY total_cost DESC",
+                )
+                if cur.description is None:
+                    return []
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row, strict=True)) for row in cur.fetchall()]
+        except Exception as exc:
+            warnings.warn(
+                f"Failed to read budget utilization from PostgreSQL: {exc}",
                 stacklevel=2,
             )
             return []

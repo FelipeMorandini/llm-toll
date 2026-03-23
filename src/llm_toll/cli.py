@@ -269,11 +269,19 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fetch latest model pricing from remote source",
     )
+    group.add_argument("--dashboard", action="store_true", help="Launch web dashboard")
 
     parser.add_argument(
         "--output",
         metavar="FILE",
         help="Output file for --export (default: stdout)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8050,
+        metavar="PORT",
+        help="Port for dashboard (default: 8050)",
     )
     return parser
 
@@ -308,5 +316,9 @@ def main() -> None:
             _cmd_reset(store, args)
         elif args.export:
             _cmd_export(store, args)
+        elif args.dashboard:
+            from llm_toll.dashboard import serve_dashboard
+
+            serve_dashboard(store, port=args.port)
     finally:
         store.close()

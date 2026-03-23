@@ -203,7 +203,13 @@ llm-toll --export csv --project my_scraper --output report.csv
 
 # Update pricing from remote source
 llm-toll --update-pricing
+
+# Launch web dashboard with charts and analytics
+llm-toll --dashboard
+llm-toll --dashboard --port 9000
 ```
+
+The web dashboard shows cost trends, project/model breakdowns, and budget utilization in your browser at `http://127.0.0.1:8050`.
 
 Pricing can also be updated programmatically:
 
