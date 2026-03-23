@@ -13,6 +13,7 @@ from llm_toll.integrations.langchain import LangChainCallback
 from llm_toll.integrations.litellm import LiteLLMCallback
 from llm_toll.pricing import PricingRegistry, default_registry
 from llm_toll.rate_limiter import RateLimiter
+from llm_toll.remote_pricing import update_pricing
 from llm_toll.reporter import CostReporter
 from llm_toll.store import UsageStore
 
@@ -36,4 +37,5 @@ __all__ = [
     "set_reporter",
     "set_store",
     "track_costs",
+    "update_pricing",
 ]

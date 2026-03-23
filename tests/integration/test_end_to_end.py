@@ -29,6 +29,7 @@ def test_full_public_api_importable() -> None:
         "set_reporter",
         "set_store",
         "track_costs",
+        "update_pricing",
     ]
     for name in expected_names:
         assert hasattr(llm_toll, name), f"{name} missing from llm_toll"

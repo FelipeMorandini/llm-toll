@@ -259,6 +259,11 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="FORMAT",
         help="Export usage logs (csv)",
     )
+    group.add_argument(
+        "--update-pricing",
+        action="store_true",
+        help="Fetch latest model pricing from remote source",
+    )
 
     parser.add_argument(
         "--output",
@@ -268,10 +273,27 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _cmd_update_pricing() -> None:
+    """Handle --update-pricing command."""
+    from llm_toll.remote_pricing import update_pricing
+
+    print("Fetching latest pricing...")
+    ok = update_pricing()
+    if ok:
+        print(_c("Pricing updated successfully.", _GREEN))
+    else:
+        print(_c("Failed to update pricing. Using built-in pricing.", _YELLOW))
+        sys.exit(1)
+
+
 def main() -> None:
     """CLI entry point."""
     parser = _build_parser()
     args = parser.parse_args()
+
+    if getattr(args, "update_pricing", False):
+        _cmd_update_pricing()
+        return
 
     store = UsageStore(db_path=args.db)
     try:

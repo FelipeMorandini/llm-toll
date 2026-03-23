@@ -141,6 +141,18 @@ class PricingRegistry:
             self._cache_dynamic(model, (0.0, 0.0))
         return 0.0
 
+    def load_remote_pricing(self, models: dict[str, tuple[float, float]]) -> int:
+        """Bulk-load pricing from a remote source.
+
+        Merges *models* into the registry, overriding existing entries.
+        Returns the number of models loaded.
+        """
+        count = 0
+        for name, (inp, out) in models.items():
+            self.register_model(name, inp, out)
+            count += 1
+        return count
+
     def has_model(self, model: str) -> bool:
         """Check if a model has pricing registered (exact match only)."""
         return model in self._models

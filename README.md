@@ -200,6 +200,17 @@ llm-toll --reset --project my_scraper
 # Export usage logs to CSV
 llm-toll --export csv > usage.csv
 llm-toll --export csv --project my_scraper --output report.csv
+
+# Update pricing from remote source
+llm-toll --update-pricing
+```
+
+Pricing can also be updated programmatically:
+
+```python
+from llm_toll import update_pricing
+
+update_pricing()  # fetches latest pricing, caches for 24h
 ```
 
 ## Development
