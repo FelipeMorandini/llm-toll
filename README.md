@@ -213,6 +213,34 @@ from llm_toll import update_pricing
 update_pricing()  # fetches latest pricing, caches for 24h
 ```
 
+## PostgreSQL Backend (Team-Wide Tracking)
+
+For team-wide cost visibility, use a shared PostgreSQL database:
+
+```bash
+pip install llm-toll[postgres]
+
+# Set via environment variable (all @track_costs decorators auto-connect)
+export LLM_TOLL_STORE_URL=postgresql://user:pass@host/llm_costs
+```
+
+Or configure programmatically:
+
+```python
+from llm_toll import create_store, set_store
+
+store = create_store(url="postgresql://user:pass@host/llm_costs")
+set_store(store)
+```
+
+The CLI also supports `--store-url`:
+
+```bash
+llm-toll --stats --store-url postgresql://user:pass@host/llm_costs
+```
+
+The PostgreSQL backend uses connection pooling and row-level locking for safe concurrent budget enforcement across multiple processes and machines.
+
 ## Development
 
 ```bash

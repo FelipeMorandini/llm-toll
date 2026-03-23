@@ -8,7 +8,7 @@ from typing import Any
 from llm_toll.parsers import auto_detect_usage
 from llm_toll.pricing import default_registry
 from llm_toll.reporter import CostReporter
-from llm_toll.store import UsageStore
+from llm_toll.store import BaseStore
 
 
 def _normalize_model(model: str) -> str:
@@ -62,7 +62,7 @@ class LiteLLMCallback:
         *,
         project: str = "default",
         max_budget: float | None = None,
-        store: UsageStore | None = None,
+        store: BaseStore | None = None,
         reporter: CostReporter | None = None,
     ) -> None:
         self._project = project
@@ -70,7 +70,7 @@ class LiteLLMCallback:
         self._store = store
         self._reporter = reporter
 
-    def _get_store(self) -> UsageStore:
+    def _get_store(self) -> BaseStore:
         if self._store is not None:
             return self._store
         # Lazy import to avoid circular dependency at module level

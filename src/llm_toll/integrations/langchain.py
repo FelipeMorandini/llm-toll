@@ -8,7 +8,7 @@ from typing import Any
 from llm_toll.exceptions import BudgetExceededError
 from llm_toll.pricing import default_registry
 from llm_toll.reporter import CostReporter
-from llm_toll.store import UsageStore
+from llm_toll.store import BaseStore
 
 
 class LangChainCallback:
@@ -45,7 +45,7 @@ class LangChainCallback:
         *,
         project: str = "default",
         max_budget: float | None = None,
-        store: UsageStore | None = None,
+        store: BaseStore | None = None,
         reporter: CostReporter | None = None,
     ) -> None:
         self._project = project
@@ -53,7 +53,7 @@ class LangChainCallback:
         self._store = store
         self._reporter = reporter
 
-    def _get_store(self) -> UsageStore:
+    def _get_store(self) -> BaseStore:
         if self._store is not None:
             return self._store
         from llm_toll.decorator import _get_store

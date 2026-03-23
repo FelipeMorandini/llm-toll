@@ -15,7 +15,7 @@ from llm_toll.pricing import PricingRegistry, default_registry
 from llm_toll.rate_limiter import RateLimiter
 from llm_toll.remote_pricing import update_pricing
 from llm_toll.reporter import CostReporter
-from llm_toll.store import UsageStore
+from llm_toll.store import BaseStore, SQLiteStore, UsageStore, create_store
 
 try:
     __version__: str = _pkg_version("llm-toll")
@@ -23,6 +23,7 @@ except PackageNotFoundError:
     __version__ = "0.0.0"
 
 __all__ = [
+    "BaseStore",
     "BudgetExceededError",
     "CostReporter",
     "LangChainCallback",
@@ -31,8 +32,10 @@ __all__ = [
     "PricingMatrixOutdatedWarning",
     "PricingRegistry",
     "RateLimiter",
+    "SQLiteStore",
     "UsageStore",
     "__version__",
+    "create_store",
     "default_registry",
     "set_reporter",
     "set_store",

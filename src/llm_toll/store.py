@@ -1,4 +1,4 @@
-"""Local SQLite persistence layer for usage logs and budget state."""
+"""Local persistence layer for usage logs and budget state."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import sqlite3
 import stat
 import threading
 import warnings
+from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,89 @@ from typing import Any
 from llm_toll.exceptions import BudgetExceededError
 
 
-class UsageStore:
+class BaseStore(ABC):
+    """Abstract base class for usage stores.
+
+    Defines the interface that all store backends must implement.
+    """
+
+    @abstractmethod
+    def log_usage(
+        self,
+        project: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+    ) -> None:
+        """Log a single LLM API call and update the project budget."""
+
+    @abstractmethod
+    def log_usage_if_within_budget(
+        self,
+        project: str,
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        max_budget: float,
+    ) -> float:
+        """Atomically check budget and log usage. Returns new total cost."""
+
+    @abstractmethod
+    def get_total_cost(self, project: str) -> float:
+        """Get the total accumulated cost for a project."""
+
+    @abstractmethod
+    def get_usage_logs(
+        self,
+        project: str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Return recent usage log entries for a project."""
+
+    @abstractmethod
+    def get_all_project_summaries(self) -> list[dict[str, Any]]:
+        """Return aggregated usage stats per project."""
+
+    @abstractmethod
+    def get_model_summaries(self, project: str | None = None) -> list[dict[str, Any]]:
+        """Return aggregated usage stats per model."""
+
+    @abstractmethod
+    def get_project_summaries_for_model(self, model: str) -> list[dict[str, Any]]:
+        """Return aggregated usage stats per project for a specific model."""
+
+    @abstractmethod
+    def get_usage_logs_filtered(
+        self,
+        project: str | None = None,
+        model: str | None = None,
+        limit: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """Return usage log entries with optional project/model filters."""
+
+    @abstractmethod
+    def reset_budget(self, project: str) -> None:
+        """Reset the accumulated cost for a project to zero."""
+
+    @abstractmethod
+    def close(self) -> None:
+        """Close the store and release resources."""
+
+    def __enter__(self) -> BaseStore:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        self.close()
+
+
+class SQLiteStore(BaseStore):
     """Local persistence layer using SQLite.
 
     Stores per-call usage logs and per-project budget state.
@@ -419,16 +502,22 @@ class UsageStore:
                 self._conn.close()
                 self._conn = None
 
-    def __enter__(self) -> UsageStore:
-        return self
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: object,
-    ) -> None:
-        self.close()
+# Backward-compatible alias
+UsageStore = SQLiteStore
+
+
+def create_store(url: str | None = None, **kwargs: Any) -> BaseStore:
+    """Factory function to create the appropriate store backend.
+
+    If *url* starts with ``postgresql://`` or ``postgres://``, returns a
+    :class:`PostgresStore`.  Otherwise returns a :class:`SQLiteStore`.
+    """
+    if url is not None and url.startswith(("postgresql://", "postgres://")):
+        from llm_toll._postgres_store import PostgresStore
+
+        return PostgresStore(dsn=url, **kwargs)
+    return SQLiteStore(db_path=url, **kwargs)
 
 
 def _utc_now_iso() -> str:
